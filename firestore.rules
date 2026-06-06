@@ -1,0 +1,23 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read: if request.auth != null;
+
+      // Allow creating your own user document on signup
+      allow create: if request.auth != null && request.auth.uid == userId;
+
+      // Prevent clients from setting role: 'admin' themselves.
+      // Only callers with custom claim 'admin' may write role, or the server (admin SDK) may.
+      allow update: if request.auth != null && (
+        // user may update their own profile but must not escalate to admin
+        (request.auth.uid == userId && !(request.resource.data.keys().hasAny(['role']) && request.resource.data.role == 'admin'))
+        // admins (custom claim) may update role
+        || (request.auth.token.admin == true)
+      );
+
+      // Deletes allowed only to admins
+      allow delete: if request.auth != null && request.auth.token.admin == true;
+    }
+  }
+}

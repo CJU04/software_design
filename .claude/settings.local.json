@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C c:/Users/Tsayter/Desktop/PROJECT_Silva/furfectcare_fixed status)",
+      "Bash(git -C \"c:/Users/Tsayter/Desktop/PROJECT_Silva/furfectcare_fixed\" log --oneline -3)",
+      "Bash(git init c:/Users/Tsayter/Desktop/PROJECT_Silva/furfectcare_fixed)",
+      "Bash(git remote add FurpectCare https://github.com/CJU04/software_design.git)",
+      "Bash(exec bash -c \"git add lib/ android/ pubspec.yaml pubspec.lock\")"
+    ]
+  }
+}
