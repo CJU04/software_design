@@ -5,19 +5,25 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth/auth_service.dart';
 import '../services/firestore/user_service.dart';
 import '../models/user_role.dart';
+export '../models/user_role.dart';
+import 'firebase_user_provider.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService;
   final UserService _userService;
+  final FirebaseUserProvider _firebaseUserProvider;
 
   AuthProvider({
     AuthService? authService,
     UserService? userService,
+    FirebaseUserProvider? firebaseUserProvider,
   })  : _authService = authService ?? AuthService(),
-        _userService = userService ?? UserService();
+        _userService = userService ?? UserService(),
+        _firebaseUserProvider = firebaseUserProvider ?? FirebaseUserProvider();
 
   User? firebaseUser;
   UserRole? role;
+  String? displayName;
 
   bool isLoading = false;
   String? errorMessage;
@@ -33,9 +39,11 @@ class AuthProvider extends ChangeNotifier {
       firebaseUser = _authService.currentUser;
       if (firebaseUser == null) {
         role = null;
+        displayName = null;
         return;
       }
       role = await _userService.getUserRole(firebaseUser!.uid);
+      displayName = await _userService.getUserName(firebaseUser!.uid);
     } catch (e) {
       errorMessage = fDebugPrint('Auth sync error: $e');
     } finally {
@@ -58,6 +66,8 @@ class AuthProvider extends ChangeNotifier {
 
       if (firebaseUser != null) {
         role = await _userService.getUserRole(firebaseUser!.uid);
+        displayName = await _userService.getUserName(firebaseUser!.uid);
+        await _firebaseUserProvider.syncCurrentFirebaseUser(firebaseUser!.uid);
       }
     } catch (e) {
       errorMessage = fDebugPrint('Sign-in error: $e');
@@ -73,6 +83,8 @@ class AuthProvider extends ChangeNotifier {
     required String password,
     required String name,
     required UserRole role,
+    String? contactNumber,
+    String? address,
   }) async {
     isLoading = true;
     errorMessage = null;
@@ -91,10 +103,16 @@ class AuthProvider extends ChangeNotifier {
         name: name,
         email: email,
         role: role,
+        contactNumber: contactNumber,
+        address: address,
       );
 
       firebaseUser = _authService.currentUser;
       this.role = role;
+      displayName = name;
+      if (firebaseUser != null) {
+        await _firebaseUserProvider.syncCurrentFirebaseUser(firebaseUser!.uid);
+      }
     } catch (e) {
       errorMessage = fDebugPrint('Registration error: $e');
       rethrow;
@@ -129,6 +147,7 @@ class AuthProvider extends ChangeNotifier {
       await _authService.signOut();
       firebaseUser = null;
       role = null;
+      displayName = null;
     } catch (e) {
       errorMessage = fDebugPrint('Sign-out error: $e');
       rethrow;

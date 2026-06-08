@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
-// dart:io is not supported on web. Import it conditionally and only use it
-// in platform-specific code paths.
 import 'dart:io' as io;
 
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 
-import 'package:vetcare_connect/providers/user_provider.dart';
+import 'package:vetcare_connect/providers/auth_provider.dart';
+import 'package:vetcare_connect/providers/firebase_user_provider.dart';
 import 'package:vetcare_connect/views/widgets/drawer_widget.dart';
+import 'package:vetcare_connect/config/theme/app_theme.dart';
 
 class ProfileSettingsScreen extends StatefulWidget {
   const ProfileSettingsScreen({super.key});
@@ -27,44 +27,152 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   final _addressController = TextEditingController();
   io.File? _profileImage;
   final ImagePicker _picker = ImagePicker();
+  bool _isEditing = false;
+  bool _profileLoaded = false;
 
   @override
   void initState() {
     super.initState();
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final currentUser = userProvider.currentUser;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_profileLoaded) {
+      _loadProfile();
+    }
+  }
+
+  void _loadProfile() {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final firebaseUserProvider = Provider.of<FirebaseUserProvider>(context, listen: false);
+    final currentUser = firebaseUserProvider.currentUser;
     if (currentUser != null) {
-      _fullnameController.text = currentUser.fullname;
+      _fullnameController.text = auth.displayName ?? currentUser.fullname;
       _contactNumberController.text = currentUser.contactNumber;
       _emailController.text = currentUser.email;
       _addressController.text = currentUser.address;
-      if (currentUser.profileImagePath != null) {
-        // Only evaluated on platforms that support dart:io.
-        _profileImage = io.File(currentUser.profileImagePath!);
+      _profileLoaded = true;
+      return;
+    }
+    // currentUser not synced yet — fetch directly from Firestore
+    final uid = auth.firebaseUser?.uid;
+    if (uid != null) {
+      firebaseUserProvider.getUserByUid(uid).then((user) {
+        if (user != null && mounted) {
+          _fullnameController.text = auth.displayName ?? user.fullname;
+          _contactNumberController.text = user.contactNumber;
+          _emailController.text = user.email;
+          _addressController.text = user.address;
+          _profileLoaded = true;
+          setState(() {});
+        }
+      });
+    }
+  }
 
+  void _startEditing() {
+    setState(() {
+      _isEditing = true;
+    });
+  }
+
+  void _cancelEditing() {
+    _loadProfile(); // reload original values
+    setState(() {
+      _isEditing = false;
+    });
+  }
+
+  void _saveProfile() async {
+    if (_formKey.currentState!.validate()) {
+      final firebaseUserProvider = Provider.of<FirebaseUserProvider>(context, listen: false);
+      final currentUser = firebaseUserProvider.currentUser;
+      final uid = Provider.of<AuthProvider>(context, listen: false).firebaseUser?.uid;
+
+      if (currentUser != null) {
+        final updatedUser = currentUser.copyWith(
+          name: _fullnameController.text,
+          contactNumber: _contactNumberController.text,
+          email: _emailController.text,
+          address: _addressController.text,
+        );
+        await firebaseUserProvider.updateUser(updatedUser);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile updated successfully!')),
+        );
+        setState(() {
+          _isEditing = false;
+        });
+        return;
+      }
+
+      // currentUser was null — fetch and update directly
+      if (uid != null) {
+        final user = await firebaseUserProvider.getUserByUid(uid);
+        if (user != null) {
+          final updatedUser = user.copyWith(
+            name: _fullnameController.text,
+            contactNumber: _contactNumberController.text,
+            email: _emailController.text,
+            address: _addressController.text,
+          );
+          await firebaseUserProvider.updateUser(updatedUser);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Profile updated successfully!')),
+          );
+          setState(() {
+            _isEditing = false;
+          });
+        }
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = Provider.of<UserProvider>(context);
-    final currentUser = userProvider.currentUser;
+    final auth = context.watch<AuthProvider>();
+    final firebaseUserProvider = Provider.of<FirebaseUserProvider>(context);
+    final currentUser = firebaseUserProvider.currentUser;
+    final displayName = auth.displayName ?? currentUser?.fullname;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile Settings'),
+        actions: [
+          if (!_isEditing)
+            IconButton(
+              onPressed: _startEditing,
+              icon: const Icon(Icons.edit, color: Colors.white),
+              tooltip: 'Edit Profile',
+            )
+          else
+            IconButton(
+              onPressed: _cancelEditing,
+              icon: const Icon(Icons.close, color: Colors.white),
+              tooltip: 'Cancel',
+            ),
+        ],
       ),
       drawer: const AppDrawer(currentRoute: '/profile_settings'),
-      body: Scrollbar(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-              Center(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxWidth = constraints.maxWidth > 600 ? 500.0 : double.infinity;
+          return Scrollbar(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 16),
+                        Center(
                 child: Stack(
                   children: [
                   CircleAvatar(
@@ -73,14 +181,14 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                     backgroundImage:
                         _profileImage != null ? FileImage(_profileImage!) : null,
 
-                    backgroundColor: Theme.of(context).colorScheme.primary,
+backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
                     child: _profileImage == null ? Text(
                       // Guard against empty names to avoid RangeError.
-                      (currentUser?.fullname.trim().isNotEmpty == true)
-                          ? currentUser!.fullname.trim()[0].toUpperCase()
+                      (displayName?.trim().isNotEmpty == true)
+                          ? displayName!.trim()[0].toUpperCase()
                           : 'U',
 
-                      style: const TextStyle(fontSize: 40, color: Colors.white),
+                      style: const TextStyle(fontSize: 40, color: AppTheme.primaryGreen),
                     ) : null,
                   ),
                     Positioned(
@@ -103,10 +211,16 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _fullnameController,
-                decoration: const InputDecoration(
+                readOnly: !_isEditing,
+                style: TextStyle(
+                  color: _isEditing ? null : Colors.grey.shade700,
+                ),
+                decoration: InputDecoration(
                   labelText: 'Full Name',
-                  prefixIcon: Icon(Icons.person),
-                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.person),
+                  border: const OutlineInputBorder(),
+                  filled: !_isEditing,
+                  fillColor: !_isEditing ? Colors.grey.shade100 : null,
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -118,10 +232,16 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _contactNumberController,
-                decoration: const InputDecoration(
+                readOnly: !_isEditing,
+                style: TextStyle(
+                  color: _isEditing ? null : Colors.grey.shade700,
+                ),
+                decoration: InputDecoration(
                   labelText: 'Contact Number',
-                  prefixIcon: Icon(Icons.phone),
-                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.phone),
+                  border: const OutlineInputBorder(),
+                  filled: !_isEditing,
+                  fillColor: !_isEditing ? Colors.grey.shade100 : null,
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -133,25 +253,29 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _emailController,
-                decoration: const InputDecoration(
+                readOnly: true,
+                style: TextStyle(color: Colors.grey.shade700),
+                decoration: InputDecoration(
                   labelText: 'Email',
-                  prefixIcon: Icon(Icons.email),
-                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.email),
+                  border: const OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your email';
-                  }
-                  return null;
-                },
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _addressController,
-                decoration: const InputDecoration(
+                readOnly: !_isEditing,
+                style: TextStyle(
+                  color: _isEditing ? null : Colors.grey.shade700,
+                ),
+                decoration: InputDecoration(
                   labelText: 'Address',
-                  prefixIcon: Icon(Icons.home),
-                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.home),
+                  border: const OutlineInputBorder(),
+                  filled: !_isEditing,
+                  fillColor: !_isEditing ? Colors.grey.shade100 : null,
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -161,39 +285,24 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                 },
               ),
               const SizedBox(height: 32),
-              ElevatedButton(
-                onPressed: _saveProfile,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+              if (_isEditing)
+                ElevatedButton(
+                  onPressed: _saveProfile,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text('Save Changes'),
                 ),
-                child: const Text('Save Changes'),
-              ),
               ],
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
-  }
-
-  void _saveProfile() {
-    if (_formKey.currentState!.validate()) {
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final currentUser = userProvider.currentUser;
-      if (currentUser != null) {
-        final updatedUser = currentUser.copyWith(
-          fullname: _fullnameController.text,
-          contactNumber: _contactNumberController.text,
-          email: _emailController.text,
-          address: _addressController.text,
-          profileImagePath: _profileImage?.path,
-        );
-        userProvider.updateUser(updatedUser);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated successfully!')),
-        );
-      }
-    }
   }
 
   Future<void> _pickImage() async {
@@ -233,44 +342,20 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   }
 
   Future<void> _saveImageToAppDirectory(XFile image) async {
-    // Web doesn't support writing to app documents directory in the same way.
-    // For web, keep the local preview in memory and do not attempt to copy
-    // the file.
+    // For web paths, just store locally in memory.
     if (image.path.startsWith('http') || image.path.startsWith('blob:') || image.path.startsWith('data:')) {
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final currentUser = userProvider.currentUser;
-      if (currentUser != null) {
-        userProvider.updateUser(
-          currentUser.copyWith(profileImagePath: image.path),
-        );
-      }
       return;
     }
 
     // Mobile/desktop: copy to local documents directory.
-    // (If this method isn't available on a platform, the build will fail.
-    //  Web paths are handled above.)
-    // Platform-specific filesystem write: keep as non-web only.
     final directory = await getApplicationDocumentsDirectory();
     final fileName = path.basename(image.path);
-
-    // Copy the selected image into app documents.
-    // Note: only safe on non-web platforms.
     final savedImage = await io.File(image.path).copy('${directory.path}/$fileName');
 
     if (!mounted) return;
     setState(() {
       _profileImage = savedImage;
     });
-
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-
-    final currentUser = userProvider.currentUser;
-    if (currentUser != null) {
-      userProvider.updateUser(
-        currentUser.copyWith(profileImagePath: savedImage.path),
-      );
-    }
   }
 
 

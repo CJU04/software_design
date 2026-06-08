@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:vetcare_connect/models/medical_history.dart';
 import 'package:vetcare_connect/models/pet.dart';
 import 'package:vetcare_connect/models/appointment.dart';
+import 'package:vetcare_connect/providers/auth_provider.dart';
 import 'package:vetcare_connect/providers/medical_history_provider.dart';
-import 'package:vetcare_connect/providers/user_provider.dart';
 import 'package:vetcare_connect/providers/pet_provider.dart';
 import 'package:vetcare_connect/providers/appointment_provider.dart';
 import 'package:vetcare_connect/views/widgets/drawer_widget.dart';
@@ -29,18 +29,19 @@ class _MedicalHistoryScreenState extends State<MedicalHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final medicalHistoryProvider = Provider.of<MedicalHistoryProvider>(context);
-    final userProvider = Provider.of<UserProvider>(context);
-    final currentUser = userProvider.currentUser;
-    final isCustomer = currentUser?.usertype == 'customer';
+    final authProvider = Provider.of<AuthProvider>(context);
+    final role = authProvider.role;
+    final uid = authProvider.firebaseUser?.uid;
+    final isCustomer = role?.value == 'customer';
 
     List<MedicalHistory> medicalHistories = medicalHistoryProvider.medicalHistories;
 
     // Filter medical histories based on user role
-    if (isCustomer) {
+    if (isCustomer && uid != null) {
       // For customers, filter by pets they own
       final petProvider = Provider.of<PetProvider>(context);
-      final customerPetIds = petProvider.pets.where((pet) => pet.userid == currentUser!.userid).map((pet) => pet.petid).toList();
-      medicalHistories = medicalHistories.where((history) => customerPetIds.contains(history.petid)).toList();
+      final customerPetIds = petProvider.pets.where((pet) => pet.ownerUid == uid).map((pet) => pet.petId).toList();
+      medicalHistories = medicalHistories.where((history) => customerPetIds.contains(history.petId)).toList();
     }
 
     if (_searchQuery.isNotEmpty) {
@@ -52,58 +53,67 @@ class _MedicalHistoryScreenState extends State<MedicalHistoryScreen> {
         title: const Text('Medical History'),
       ),
       drawer: const AppDrawer(currentRoute: '/medical_history'),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: const InputDecoration(
-                labelText: 'Search Medical History',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
-            ),
-          ),
-          Expanded(
-            child: medicalHistories.isEmpty
-                ? const Center(
-                    child: Text('No medical history found'),
-                  )
-                : ListView.builder(
-                    itemCount: medicalHistories.length,
-                    itemBuilder: (context, index) {
-                      final history = medicalHistories[index];
-                      return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                        child: ListTile(
-                          leading: const Icon(Icons.medical_services),
-                          title: Text(history.diagnosis),
-                          subtitle: Text('${history.date} - ${history.treatment}'),
-                          trailing: isCustomer ? null : Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit),
-                                onPressed: () => _editMedicalHistory(history),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete),
-                                onPressed: () => _deleteMedicalHistory(history),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          double maxWidth = constraints.maxWidth > 600 ? 800 : double.infinity;
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: const InputDecoration(
+                      labelText: 'Search Medical History',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
                     },
                   ),
-          ),
-        ],
+                ),
+              ),
+              Expanded(
+                child: medicalHistories.isEmpty
+                    ? const Center(
+                        child: Text('No medical history found'),
+                      )
+                    : ListView.builder(
+                        padding: EdgeInsets.symmetric(horizontal: constraints.maxWidth > 600 ? (constraints.maxWidth - 800) / 2 : 0),
+                        itemCount: medicalHistories.length,
+                        itemBuilder: (context, index) {
+                          final history = medicalHistories[index];
+                          return Card(
+                            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                            child: ListTile(
+                              leading: const Icon(Icons.medical_services),
+                              title: Text(history.diagnosis),
+                              subtitle: Text('${history.date} - ${history.treatment}'),
+                              trailing: isCustomer ? null : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit),
+                                    onPressed: () => _editMedicalHistory(history),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete),
+                                    onPressed: () => _deleteMedicalHistory(history),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addMedicalHistory,
@@ -113,12 +123,12 @@ class _MedicalHistoryScreenState extends State<MedicalHistoryScreen> {
   }
 
   void _addMedicalHistory() {
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final petProvider = Provider.of<PetProvider>(context, listen: false);
     final appointmentProvider = Provider.of<AppointmentProvider>(context, listen: false);
-    final currentUser = userProvider.currentUser;
+    final uid = authProvider.firebaseUser?.uid;
 
-    if (currentUser == null) {
+    if (uid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('User not logged in')),
       );
@@ -130,16 +140,16 @@ class _MedicalHistoryScreenState extends State<MedicalHistoryScreen> {
     final treatmentController = TextEditingController();
     final notesController = TextEditingController();
 
-    int? selectedPetId;
-    int? selectedAppointmentId;
+    String? selectedPetId;
+    String? selectedAppointmentId;
 
     List<Pet> availablePets = petProvider.pets;
     List<Appointment> availableAppointments = appointmentProvider.appointments;
 
     // Filter pets and appointments based on user role
-    if (currentUser.usertype == 'customer') {
-      availablePets = availablePets.where((pet) => pet.userid == currentUser.userid).toList();
-      availableAppointments = availableAppointments.where((appointment) => appointment.userid == currentUser.userid).toList();
+    if (authProvider.role?.value == 'customer') {
+      availablePets = availablePets.where((pet) => pet.ownerUid == uid).toList();
+      availableAppointments = availableAppointments.where((appointment) => appointment.ownerUid == uid).toList();
     }
 
     showDialog(
@@ -153,13 +163,13 @@ class _MedicalHistoryScreenState extends State<MedicalHistoryScreen> {
               children: [
                 SizedBox(
                   width: double.infinity,
-                  child: DropdownButtonFormField<int>(
+                  child: DropdownButtonFormField<String>(
                     isExpanded: true,
-                    initialValue: selectedPetId,
+                    value: selectedPetId,
                     decoration: const InputDecoration(labelText: 'Select Pet'),
                     items: availablePets.map((pet) {
-                      return DropdownMenuItem<int>(
-                        value: pet.petid,
+                      return DropdownMenuItem<String>(
+                        value: pet.petId,
                         child: Text('${pet.name} (${pet.type})', overflow: TextOverflow.ellipsis),
                       );
                     }).toList(),
@@ -172,13 +182,13 @@ class _MedicalHistoryScreenState extends State<MedicalHistoryScreen> {
                 ),
                 SizedBox(
                   width: double.infinity,
-                  child: DropdownButtonFormField<int>(
+                  child: DropdownButtonFormField<String>(
                     isExpanded: true,
-                    initialValue: selectedAppointmentId,
+                    value: selectedAppointmentId,
                     decoration: const InputDecoration(labelText: 'Select Appointment'),
                     items: availableAppointments.map((appointment) {
-                      return DropdownMenuItem<int>(
-                        value: appointment.appointmentid,
+                      return DropdownMenuItem<String>(
+                        value: appointment.appointmentId,
                         child: Text('${appointment.date} - ${appointment.reason}', overflow: TextOverflow.ellipsis),
                       );
                     }).toList(),
@@ -217,19 +227,35 @@ class _MedicalHistoryScreenState extends State<MedicalHistoryScreen> {
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 if (selectedPetId != null && selectedAppointmentId != null) {
                   final newHistory = MedicalHistory(
-                    historyid: null,
-                    petid: selectedPetId!,
-                    appointmentid: selectedAppointmentId!,
+                    historyId: null,
+                    petId: selectedPetId!,
+                    appointmentId: selectedAppointmentId!,
                     date: dateController.text,
                     diagnosis: diagnosisController.text,
                     treatment: treatmentController.text,
                     notes: notesController.text,
                   );
-                  Provider.of<MedicalHistoryProvider>(context, listen: false).addMedicalHistory(newHistory);
                   Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Adding medical history...'), duration: Duration(seconds: 1)),
+                  );
+                  try {
+                    await Provider.of<MedicalHistoryProvider>(context, listen: false).addMedicalHistory(newHistory);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Medical history added successfully'), backgroundColor: Colors.green),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Failed to add medical history'), backgroundColor: Colors.red),
+                      );
+                    }
+                  }
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Please select a pet and appointment')),
@@ -245,12 +271,12 @@ class _MedicalHistoryScreenState extends State<MedicalHistoryScreen> {
   }
 
   void _editMedicalHistory(MedicalHistory history) {
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final petProvider = Provider.of<PetProvider>(context, listen: false);
     final appointmentProvider = Provider.of<AppointmentProvider>(context, listen: false);
-    final currentUser = userProvider.currentUser;
+    final uid = authProvider.firebaseUser?.uid;
 
-    if (currentUser == null) {
+    if (uid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('User not logged in')),
       );
@@ -262,16 +288,16 @@ class _MedicalHistoryScreenState extends State<MedicalHistoryScreen> {
     final treatmentController = TextEditingController(text: history.treatment);
     final notesController = TextEditingController(text: history.notes);
 
-    int? selectedPetId = history.petid;
-    int? selectedAppointmentId = history.appointmentid;
+    String? selectedPetId = history.petId;
+    String? selectedAppointmentId = history.appointmentId;
 
     List<Pet> availablePets = petProvider.pets;
     List<Appointment> availableAppointments = appointmentProvider.appointments;
 
     // Filter pets and appointments based on user role
-    if (currentUser.usertype == 'customer') {
-      availablePets = availablePets.where((pet) => pet.userid == currentUser.userid).toList();
-      availableAppointments = availableAppointments.where((appointment) => appointment.userid == currentUser.userid).toList();
+    if (authProvider.role?.value == 'customer') {
+      availablePets = availablePets.where((pet) => pet.ownerUid == uid).toList();
+      availableAppointments = availableAppointments.where((appointment) => appointment.ownerUid == uid).toList();
     }
 
     showDialog(
@@ -285,13 +311,13 @@ class _MedicalHistoryScreenState extends State<MedicalHistoryScreen> {
               children: [
                 SizedBox(
                   width: double.infinity,
-                  child: DropdownButtonFormField<int>(
+                  child: DropdownButtonFormField<String>(
                     isExpanded: true,
-                    initialValue: selectedPetId,
+                    value: selectedPetId,
                     decoration: const InputDecoration(labelText: 'Select Pet'),
                     items: availablePets.map((pet) {
-                      return DropdownMenuItem<int>(
-                        value: pet.petid,
+                      return DropdownMenuItem<String>(
+                        value: pet.petId,
                         child: Text('${pet.name} (${pet.type})', overflow: TextOverflow.ellipsis),
                       );
                     }).toList(),
@@ -304,13 +330,13 @@ class _MedicalHistoryScreenState extends State<MedicalHistoryScreen> {
                 ),
                 SizedBox(
                   width: double.infinity,
-                  child: DropdownButtonFormField<int>(
+                  child: DropdownButtonFormField<String>(
                     isExpanded: true,
-                    initialValue: selectedAppointmentId,
+                    value: selectedAppointmentId,
                     decoration: const InputDecoration(labelText: 'Select Appointment'),
                     items: availableAppointments.map((appointment) {
-                      return DropdownMenuItem<int>(
-                        value: appointment.appointmentid,
+                      return DropdownMenuItem<String>(
+                        value: appointment.appointmentId,
                         child: Text('${appointment.date} - ${appointment.reason}', overflow: TextOverflow.ellipsis),
                       );
                     }).toList(),
@@ -349,19 +375,35 @@ class _MedicalHistoryScreenState extends State<MedicalHistoryScreen> {
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 if (selectedPetId != null && selectedAppointmentId != null) {
                   final updatedHistory = MedicalHistory(
-                    historyid: history.historyid,
-                    petid: selectedPetId!,
-                    appointmentid: selectedAppointmentId!,
+                    historyId: history.historyId,
+                    petId: selectedPetId!,
+                    appointmentId: selectedAppointmentId!,
                     date: dateController.text,
                     diagnosis: diagnosisController.text,
                     treatment: treatmentController.text,
                     notes: notesController.text,
                   );
-                  Provider.of<MedicalHistoryProvider>(context, listen: false).updateMedicalHistory(updatedHistory);
                   Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Updating medical history...'), duration: Duration(seconds: 1)),
+                  );
+                  try {
+                    await Provider.of<MedicalHistoryProvider>(context, listen: false).updateMedicalHistory(updatedHistory);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Medical history updated successfully'), backgroundColor: Colors.green),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Failed to update medical history'), backgroundColor: Colors.red),
+                      );
+                    }
+                  }
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Please select a pet and appointment')),
@@ -388,9 +430,25 @@ class _MedicalHistoryScreenState extends State<MedicalHistoryScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              Provider.of<MedicalHistoryProvider>(context, listen: false).deleteMedicalHistory(history.historyid!);
+            onPressed: () async {
               Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Deleting medical history...'), duration: Duration(seconds: 1)),
+              );
+              try {
+                await Provider.of<MedicalHistoryProvider>(context, listen: false).deleteMedicalHistory(history.historyId!);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Medical history deleted successfully'), backgroundColor: Colors.green),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Failed to delete medical history'), backgroundColor: Colors.red),
+                  );
+                }
+              }
             },
             child: const Text('Delete'),
           ),

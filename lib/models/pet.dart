@@ -1,6 +1,6 @@
 class Pet {
-  int? petid;
-  int userid; // FK to User
+  String? petId;
+  String ownerUid; // FK to FirebaseUser.uid
   String name;
   String type;
   String breed;
@@ -10,8 +10,8 @@ class Pet {
   String healthNotes;
 
   Pet({
-    this.petid,
-    required this.userid,
+    this.petId,
+    required this.ownerUid,
     required this.name,
     required this.type,
     required this.breed,
@@ -23,8 +23,8 @@ class Pet {
 
   Map<String, dynamic> toMap() {
     return {
-      'petid': petid,
-      'userid': userid,
+      'petId': petId,
+      'ownerUid': ownerUid,
       'name': name,
       'type': type,
       'breed': breed,
@@ -37,16 +37,39 @@ class Pet {
 
   factory Pet.fromMap(Map<String, dynamic> map) {
     return Pet(
-      petid: map['petid'],
-      userid: map['userid'],
-      name: map['name'],
-      type: map['type'],
-      breed: map['breed'],
-      age: map['age'],
-      gender: map['gender'],
-      vaccinationStatus: map['vaccination_status'],
-      healthNotes: map['healthnotes'],
+      petId: map['petId'] as String?,
+      ownerUid: map['ownerUid'] as String? ?? '',
+      name: map['name'] as String? ?? '',
+      type: map['type'] as String? ?? '',
+      breed: map['breed'] as String? ?? '',
+      age: map['age'] as int? ?? 0,
+      gender: map['gender'] as String? ?? '',
+      vaccinationStatus: map['vaccination_status'] as String? ?? '',
+      healthNotes: map['healthnotes'] as String? ?? '',
+    );
+  }
+
+  Pet copyWith({
+    String? petId,
+    String? ownerUid,
+    String? name,
+    String? type,
+    String? breed,
+    int? age,
+    String? gender,
+    String? vaccinationStatus,
+    String? healthNotes,
+  }) {
+    return Pet(
+      petId: petId ?? this.petId,
+      ownerUid: ownerUid ?? this.ownerUid,
+      name: name ?? this.name,
+      type: type ?? this.type,
+      breed: breed ?? this.breed,
+      age: age ?? this.age,
+      gender: gender ?? this.gender,
+      vaccinationStatus: vaccinationStatus ?? this.vaccinationStatus,
+      healthNotes: healthNotes ?? this.healthNotes,
     );
   }
 }
-

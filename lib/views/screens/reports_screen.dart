@@ -3,10 +3,10 @@ import 'package:provider/provider.dart';
 
 import 'package:vetcare_connect/models/product.dart';
 import 'package:vetcare_connect/models/sales.dart';
+import 'package:vetcare_connect/providers/auth_provider.dart';
 import 'package:vetcare_connect/providers/product_provider.dart';
 import 'package:vetcare_connect/providers/sale_item_provider.dart';
 import 'package:vetcare_connect/providers/sales_provider.dart';
-import 'package:vetcare_connect/providers/user_provider.dart';
 import 'package:vetcare_connect/views/screens/access_denied_screen.dart';
 import 'package:vetcare_connect/views/widgets/drawer_widget.dart';
 
@@ -21,11 +21,12 @@ class _ReportsScreenState extends State<ReportsScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   String _selectedPeriod = 'All Time';
+  String _selectedProductPeriod = 'All Time';
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
 
     // Preload data used by the tabs.
     Provider.of<SalesProvider>(context, listen: false).loadSales();
@@ -40,11 +41,11 @@ class _ReportsScreenState extends State<ReportsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = Provider.of<UserProvider>(context);
-    final currentUser = userProvider.currentUser;
+    final authProvider = Provider.of<AuthProvider>(context);
+    final role = authProvider.role;
 
     // Customers are not allowed to view reports.
-    if (currentUser?.usertype == 'customer') {
+    if (role?.value == 'customer') {
       return const AccessDeniedScreen();
     }
 
@@ -56,16 +57,26 @@ class _ReportsScreenState extends State<ReportsScreen>
           tabs: const [
             Tab(text: 'Sales Report'),
             Tab(text: 'Inventory Report'),
+            Tab(text: 'Products Report'),
           ],
         ),
       ),
       drawer: const AppDrawer(currentRoute: '/reports'),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildSalesReport(),
-          _buildInventoryReport(),
-        ],
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          double maxWidth = constraints.maxWidth > 600 ? 900 : double.infinity;
+          return ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildSalesReport(),
+                _buildInventoryReport(),
+                _buildProductsReport(),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -78,7 +89,7 @@ class _ReportsScreenState extends State<ReportsScreen>
 
     final totalSales = filteredSales.fold<double>(
       0.0,
-      (sum, sale) => sum + sale.totalamount,
+      (sum, sale) => sum + sale.totalAmount,
     );
     final totalTransactions = filteredSales.length;
 
@@ -113,7 +124,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                     isDense: true,
                     isExpanded: true,
                     value: _selectedPeriod,
-                    items: ['All Time', 'This Month', 'Last Month']
+                    items: ['All Time', 'This Week', 'This Month', 'Last Month', 'This Year']
                         .map((value) => DropdownMenuItem<String>(
                               value: value,
                               child: Text(value, overflow: TextOverflow.ellipsis),
@@ -234,7 +245,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                         if (selected != true) return;
 
                         // saleid is nullable in the model; guard to avoid runtime errors.
-                        final id = sale.saleid;
+                        final id = sale.saleId;
                         if (id == null) return;
 
                         _showSalesDetailsDialog(id, [sale]);
@@ -244,7 +255,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                         DataCell(Text(timeDisplay)),
                         DataCell(
                           Text(
-                            '₱${sale.totalamount.toStringAsFixed(2)}',
+                            '₱${sale.totalAmount.toStringAsFixed(2)}',
                             style: const TextStyle(fontWeight: FontWeight.w500),
                           ),
                         ),
@@ -264,8 +275,8 @@ class _ReportsScreenState extends State<ReportsScreen>
     final productProvider = Provider.of<ProductProvider>(context);
     final products = productProvider.products;
 
-    final lowStockProducts = products.where((p) => p.stockquantity < 10).toList();
-    final outOfStockProducts = products.where((p) => p.stockquantity == 0).toList();
+    final lowStockProducts = products.where((p) => p.stockQuantity < 10).toList();
+    final outOfStockProducts = products.where((p) => p.stockQuantity == 0).toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -411,21 +422,21 @@ class _ReportsScreenState extends State<ReportsScreen>
                 ],
                 rows: lowStockProducts.map((product) {
                   final statusColor =
-                      product.stockquantity == 0 ? Colors.red : Colors.orange;
+                      product.stockQuantity == 0 ? Colors.red : Colors.orange;
                   final statusText =
-                      product.stockquantity == 0 ? 'Out of Stock' : 'Low Stock';
+                      product.stockQuantity == 0 ? 'Out of Stock' : 'Low Stock';
 
                   return DataRow(
                     cells: [
                       DataCell(
                         Text(
-                          product.productname,
+                          product.productName,
                           style: const TextStyle(fontWeight: FontWeight.w500),
                         ),
                       ),
                       DataCell(
                         Text(
-                          '${product.stockquantity}',
+                          '${product.stockQuantity}',
                           style: TextStyle(
                             fontWeight: FontWeight.w500,
                             color: statusColor,
@@ -473,11 +484,28 @@ class _ReportsScreenState extends State<ReportsScreen>
     final now = DateTime.now();
     final currentMonth = DateTime(now.year, now.month);
     final lastMonth = DateTime(now.year, now.month - 1);
+    final currentWeekStart = now.subtract(Duration(days: now.weekday - 1));
+    final currentWeekEnd = currentWeekStart.add(const Duration(days: 6));
+
+    if (period == 'This Week') {
+      return allSales.where((sale) {
+        final saleDate = DateTime.parse(sale.date);
+        return saleDate.isAfter(currentWeekStart.subtract(const Duration(days: 1))) &&
+            saleDate.isBefore(currentWeekEnd.add(const Duration(days: 1)));
+      }).toList();
+    }
 
     if (period == 'This Month') {
       return allSales.where((sale) {
         final saleDate = DateTime.parse(sale.date);
         return saleDate.year == currentMonth.year && saleDate.month == currentMonth.month;
+      }).toList();
+    }
+
+    if (period == 'This Year') {
+      return allSales.where((sale) {
+        final saleDate = DateTime.parse(sale.date);
+        return saleDate.year == now.year;
       }).toList();
     }
 
@@ -513,20 +541,173 @@ class _ReportsScreenState extends State<ReportsScreen>
     }
   }
 
-  void _showSalesDetailsDialog(int saleId, List<Sales> sales) {
+  Widget _buildProductsReport() {
+    final salesProvider = Provider.of<SalesProvider>(context);
+    final saleItemProvider = Provider.of<SaleItemProvider>(context);
+    final productProvider = Provider.of<ProductProvider>(context);
+    final allSales = salesProvider.sales;
+    final allSaleItems = saleItemProvider.saleItems;
+    final products = productProvider.products;
+
+    final filteredSales = _filterSalesByPeriod(allSales, _selectedProductPeriod);
+    final filteredSaleIds = filteredSales.map((s) => s.saleId).where((id) => id != null).toSet();
+
+    // Aggregate quantity sold per product
+    final Map<String, int> productQty = {};
+    final Map<String, double> productRevenue = {};
+    for (final item in allSaleItems) {
+      if (item.saleId != null && filteredSaleIds.contains(item.saleId)) {
+        productQty[item.productId] = (productQty[item.productId] ?? 0) + item.quantity;
+        productRevenue[item.productId] = (productRevenue[item.productId] ?? 0) + item.subtotal;
+      }
+    }
+
+    // Sort by quantity descending
+    final sortedEntries = productQty.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final topProducts = sortedEntries.take(20).toList();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.shopping_bag, size: 28),
+                  SizedBox(width: 8),
+                  Text(
+                    'Most Sold Products',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              Container(
+                constraints: const BoxConstraints(maxWidth: 160),
+                child: DropdownButton<String>(
+                  isDense: true,
+                  isExpanded: true,
+                  value: _selectedProductPeriod,
+                  items: ['All Time', 'This Week', 'This Month', 'Last Month', 'This Year']
+                      .map((value) => DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(value, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _selectedProductPeriod = value);
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          if (topProducts.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(24),
+              alignment: Alignment.center,
+              child: const Text('No sales data for this period', style: TextStyle(fontSize: 16, color: Colors.grey)),
+            )
+          else
+            ...List.generate(topProducts.length, (index) {
+              final entry = topProducts[index];
+              final product = products.firstWhere(
+                (p) => p.productId == entry.key,
+                orElse: () => Product(productId: null, productName: 'Unknown', description: '', price: 0, stockQuantity: 0, category: ''),
+              );
+              final qty = entry.value;
+              final revenue = productRevenue[entry.key] ?? 0;
+              final rank = index + 1;
+              final rankColor = index == 0 ? Colors.amber : (index == 1 ? Colors.grey.shade400 : (index == 2 ? Colors.brown.shade300 : Colors.grey.shade200));
+              final rankTextColor = index == 0 ? Colors.black : Colors.white;
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: rankColor,
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '#$rank',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: rankTextColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              product.productName,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              product.category,
+                              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Flexible(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '$qty sold',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.green),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '₱${revenue.toStringAsFixed(2)}',
+                              style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  void _showSalesDetailsDialog(String saleId, List<Sales> sales) {
     if (sales.isEmpty) return;
 
     final sale = sales.first;
 
     final saleItemProvider = Provider.of<SaleItemProvider>(context, listen: false);
     final saleItems =
-        saleItemProvider.saleItems.where((item) => item.saleid == saleId).toList();
+        saleItemProvider.saleItems.where((item) => item.saleId == saleId).toList();
 
     showDialog(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text('Sales Details for Sale #$saleId'),
+          title: Text('Sales Details for Sale #${saleId.substring(0, 8)}'),
           content: SizedBox(
             width: double.maxFinite,
             child: SingleChildScrollView(
@@ -567,20 +748,20 @@ class _ReportsScreenState extends State<ReportsScreen>
                             Provider.of<ProductProvider>(dialogContext, listen: false);
 
                         final product = productProvider.products.firstWhere(
-                          (p) => p.productid == item.productid,
+                          (p) => p.productId == item.productId,
                           orElse: () => Product(
-                            productid: null,
-                            productname: 'Unknown Product',
+                            productId: null,
+                            productName: 'Unknown Product',
                             description: '',
                             price: 0.0,
-                            stockquantity: 0,
+                            stockQuantity: 0,
                             category: '',
                           ),
                         );
 
                         return DataRow(
                           cells: [
-                            DataCell(Text(product.productname)),
+                            DataCell(Text(product.productName)),
                             DataCell(Text('${item.quantity}')),
                             DataCell(Text('₱${item.price.toStringAsFixed(2)}')),
                             DataCell(
@@ -593,7 +774,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Total Amount: ₱${sale.totalamount.toStringAsFixed(2)}',
+                    'Total Amount: ₱${sale.totalAmount.toStringAsFixed(2)}',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ],

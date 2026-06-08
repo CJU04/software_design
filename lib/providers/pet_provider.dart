@@ -12,15 +12,15 @@ class PetProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loadPetsForUser(int userid) async {
-    _pets = await DatabaseService().getPets();
-    _pets = _pets.where((pet) => pet.userid == userid).toList();
+  Future<void> loadPetsForOwner(String ownerUid) async {
+    _pets = await DatabaseService().getPetsByOwner(ownerUid);
     notifyListeners();
   }
 
-  Future<void> addPet(Pet pet) async {
-    await DatabaseService().insertPet(pet);
+  Future<String> addPet(Pet pet) async {
+    final id = await DatabaseService().insertPet(pet);
     await loadPets();
+    return id;
   }
 
   Future<void> updatePet(Pet pet) async {
@@ -28,13 +28,12 @@ class PetProvider with ChangeNotifier {
     await loadPets();
   }
 
-  Future<void> deletePet(int id) async {
+  Future<void> deletePet(String id) async {
     await DatabaseService().deletePet(id);
     await loadPets();
   }
 
-  List<Pet> getPetsByUser(int userid) {
-    return _pets.where((pet) => pet.userid == userid).toList();
+  List<Pet> getPetsByOwner(String ownerUid) {
+    return _pets.where((pet) => pet.ownerUid == ownerUid).toList();
   }
 }
-

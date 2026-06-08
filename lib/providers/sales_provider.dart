@@ -12,9 +12,10 @@ class SalesProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addSales(Sales sales) async {
-    await DatabaseService().insertSales(sales);
+  Future<String> addSales(Sales sales) async {
+    final id = await DatabaseService().insertSales(sales);
     await loadSales();
+    return id;
   }
 
   Future<void> updateSales(Sales sales) async {
@@ -22,13 +23,12 @@ class SalesProvider with ChangeNotifier {
     await loadSales();
   }
 
-  Future<void> deleteSales(int id) async {
+  Future<void> deleteSales(String id) async {
     await DatabaseService().deleteSales(id);
     await loadSales();
   }
 
-  List<Sales> getSalesByUser(int userid) {
-    return _sales.where((sale) => sale.userid == userid).toList();
+  List<Sales> getSalesByOwner(String ownerUid) {
+    return _sales.where((s) => s.ownerUid == ownerUid).toList();
   }
 }
-

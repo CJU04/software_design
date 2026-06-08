@@ -23,7 +23,7 @@ class _SplashScreenState extends State<SplashScreen> {
     return Scaffold(
       body: Center(
         child: Text(
-          'FurfectCare',
+'FurfectCare',
           style: Theme.of(context).textTheme.headlineMedium,
         ),
       ),

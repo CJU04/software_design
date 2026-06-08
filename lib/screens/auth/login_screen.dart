@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../models/user_role.dart';
 import '../../providers/auth_provider.dart';
 import '../../routes/app_router.dart';
 import '../../widgets/app_loading_indicator.dart';
@@ -30,16 +29,37 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String? _validateEmail(String? value) {
     final v = value?.trim() ?? '';
-    if (v.isEmpty) return 'Email is required';
-    if (!v.contains('@')) return 'Enter a valid email';
+    if (v.isEmpty) return 'Please enter your email address';
+    if (!v.contains('@')) return 'Please enter a valid email address (e.g., name@example.com)';
+    if (!v.contains('.')) return 'Please enter a valid email address with a domain (e.g., name@example.com)';
     return null;
   }
 
   String? _validatePassword(String? value) {
     final v = value ?? '';
-    if (v.isEmpty) return 'Password is required';
-    if (v.length < 6) return 'Password must be at least 6 characters';
+    if (v.isEmpty) return 'Please enter your password';
+    if (v.length < 6) return 'Password must be at least 6 characters long';
     return null;
+  }
+
+  String _getUserFriendlyErrorMessage(dynamic error) {
+    final errorStr = error.toString().toLowerCase();
+    if (errorStr.contains('user-not-found') || errorStr.contains('invalid-email')) {
+      return 'No account found with this email address. Please check your email or register a new account.';
+    }
+    if (errorStr.contains('wrong-password') || errorStr.contains('invalid-credential')) {
+      return 'Incorrect password. Please try again or use "Forgot password" to reset it.';
+    }
+    if (errorStr.contains('network')) {
+      return 'Network error. Please check your internet connection and try again.';
+    }
+    if (errorStr.contains('too-many-requests')) {
+      return 'Too many login attempts. Please wait a moment and try again.';
+    }
+    if (errorStr.contains('user-disabled')) {
+      return 'This account has been disabled. Please contact support for assistance.';
+    }
+    return 'Login failed. Please check your email and password and try again.';
   }
 
   Future<void> _submit() async {
@@ -64,7 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // Redirect based on role.
       final nextRoute = switch (auth.role) {
         UserRole.admin => AppRouter.adminDashboardRoute,
-        UserRole.petOwner => AppRouter.petOwnerDashboardRoute,
+        UserRole.customer => AppRouter.customerDashboardRoute,
         UserRole.staff => AppRouter.staffDashboardRoute,
         UserRole.veterinarian => AppRouter.veterinarianDashboardRoute,
         null => AppRouter.splashRoute,
@@ -73,9 +93,17 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed(nextRoute);
     } on Exception catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Login failed: $e')));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(_getUserFriendlyErrorMessage(e)),
+        ),
+      );
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Login failed: $e')));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(_getUserFriendlyErrorMessage(e)),
+        ),
+      );
     }
   }
 
@@ -165,7 +193,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       const SizedBox(height: 12),
                       Text(
-                        auth.errorMessage!,
+                        'Login failed. Please check your email and password.',
                         style: TextStyle(color: Theme.of(context).colorScheme.error),
                       ),
                     ],

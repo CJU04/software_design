@@ -1,71 +1,141 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:vetcare_connect/providers/user_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
+import 'package:vetcare_connect/providers/auth_provider.dart';
+import 'package:vetcare_connect/providers/firebase_user_provider.dart';
+import 'package:vetcare_connect/config/theme/app_theme.dart';
+import 'package:vetcare_connect/routes/app_router.dart';
 
 class AppDrawer extends StatelessWidget {
   final String currentRoute;
 
-
   const AppDrawer({super.key, required this.currentRoute});
+
+  String get _dashboardRoute {
+    switch (currentRoute) {
+      case '/customer':
+        return AppRouter.customerDashboardRoute;
+      case '/staff':
+        return AppRouter.staffDashboardRoute;
+      case '/veterinarian':
+        return AppRouter.veterinarianDashboardRoute;
+      default:
+        return AppRouter.adminDashboardRoute;
+    }
+  }
+
+  bool get _isOnDashboard {
+    return currentRoute == AppRouter.customerDashboardRoute ||
+        currentRoute == AppRouter.staffDashboardRoute ||
+        currentRoute == AppRouter.veterinarianDashboardRoute ||
+        currentRoute == AppRouter.adminDashboardRoute ||
+        currentRoute == '/dashboard';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = Provider.of<UserProvider>(context);
-    final currentUser = userProvider.currentUser;
-
-    final isCustomer = currentUser?.usertype == 'customer';
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final firebaseUserProvider = Provider.of<FirebaseUserProvider>(context);
+    final currentUser = firebaseUserProvider.currentUser;
+    final displayName = auth.displayName ?? currentUser?.fullname ?? 'Guest';
+    final userEmail = auth.firebaseUser?.email ?? currentUser?.email ?? '';
+    final role = auth.role;
+    final isAdmin = role?.value == 'admin';
+    final isCustomer = role?.value == 'customer';
+    // Get photo URL from Firebase Auth user or from Firestore user profile
+    final photoUrl = auth.firebaseUser?.photoURL ?? currentUser?.photoUrl ?? currentUser?.imageUrl ?? '';
 
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          DrawerHeader(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
+          UserAccountsDrawerHeader(
+            decoration: const BoxDecoration(
+              color: AppTheme.primaryGreen,
             ),
-            child: Column(
-
+            accountName: const SizedBox.shrink(),
+            accountEmail: const SizedBox.shrink(),
+            currentAccountPicture: Column(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Center(
-                  child: CircleAvatar(
-                    radius: 40,
-                    // Web-safe: don't use dart:io FileImage here.
-                    // If profileImagePath isn't available as an in-memory/URL source,
-                    // fall back to initials.
-                    backgroundImage: null,
-                    backgroundColor: Colors.white,
-                    child: currentUser?.profileImagePath == null
-                        ? Text(
-                            // Guard against empty names to avoid RangeError.
-                            (currentUser?.fullname.trim().isNotEmpty == true)
-                                ? currentUser!.fullname.trim()[0].toUpperCase()
-                                : 'G',
-
-                            style: TextStyle(
-                              fontSize: 32,
-                              color: Theme.of(context).colorScheme.primary,
+                const SizedBox(height: 20),
+                photoUrl.isNotEmpty
+                    ? CircleAvatar(
+                        radius: 38,
+                        backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
+                        child: ClipOval(
+                          child: CachedNetworkImage(
+                            imageUrl: photoUrl,
+                            width: 76,
+                            height: 76,
+                            fit: BoxFit.cover,
+                            placeholder: (_, __) => Text(
+                              (displayName.trim().isNotEmpty == true)
+                                  ? displayName.trim()[0].toUpperCase()
+                                  : 'G',
+                              style: const TextStyle(
+                                fontSize: 30,
+                                color: AppTheme.primaryGreen,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          )
-                        : null,
-                  ),
-                ),
+                            errorWidget: (_, __, ___) => Text(
+                              (displayName.trim().isNotEmpty == true)
+                                  ? displayName.trim()[0].toUpperCase()
+                                  : 'G',
+                              style: const TextStyle(
+                                fontSize: 30,
+                                color: AppTheme.primaryGreen,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : CircleAvatar(
+                        radius: 38,
+                        backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
+                        child: Text(
+                          (displayName.trim().isNotEmpty == true)
+                              ? displayName.trim()[0].toUpperCase()
+                              : 'G',
+                          style: const TextStyle(
+                            fontSize: 30,
+                            color: AppTheme.primaryGreen,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                 const SizedBox(height: 8),
-                Text(
-                  currentUser?.fullname ?? 'Guest',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    displayName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                   ),
                 ),
-                Text(
-                  currentUser?.email ?? '',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
+                const SizedBox(height: 2),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    userEmail,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                   ),
                 ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -73,137 +143,71 @@ class AppDrawer extends StatelessWidget {
             context,
             'Dashboard',
             Icons.dashboard,
-            '/dashboard',
+            _dashboardRoute,
+            isSelected: _isOnDashboard,
           ),
+          if (isAdmin)
+            _buildDrawerItem(context, 'User Management', Icons.people, AppRouter.userManagementRoute),
+          _buildDrawerItem(context, 'Pets', Icons.pets, AppRouter.petManagementRoute),
+          if (!isCustomer)
+            _buildDrawerItem(context, 'Medical History', Icons.medical_services, AppRouter.medicalHistoryRoute),
+          _buildDrawerItem(context, 'Appointments', Icons.calendar_today, AppRouter.appointmentManagementRoute),
+          if (isCustomer)
+            _buildDrawerItem(context, 'Product Catalog', Icons.shopping_bag, AppRouter.productCatalogRoute),
           if (!isCustomer) ...[
-            if (currentUser?.usertype == 'admin') ...[
-              _buildDrawerItem(
-                context,
-                'User Management',
-                Icons.people,
-                '/user_management',
-              ),
-              _buildDrawerItem(
-                context,
-                'Pets',
-                Icons.pets,
-                '/pet_management',
-              ),
-              _buildDrawerItem(
-                context,
-                'Medical History',
-                Icons.medical_services,
-                '/medical_history',
-              ),
-              _buildDrawerItem(
-                context,
-                'Sales / POS',
-                Icons.point_of_sale,
-                '/sales_pos',
-              ),
-              _buildDrawerItem(
-                context,
-                'Inventory Logs',
-                Icons.history,
-                '/inventory_logs',
-              ),
-              _buildDrawerItem(
-                context,
-                'Reports',
-                Icons.bar_chart,
-                '/reports',
-              ),
-            ] else if (currentUser?.usertype == 'veterinarian') ...[
-              _buildDrawerItem(
-                context,
-                'Pets',
-                Icons.pets,
-                '/pet_management',
-              ),
-              _buildDrawerItem(
-                context,
-                'Medical History',
-                Icons.medical_services,
-                '/medical_history',
-              ),
-            ] else if (currentUser?.usertype == 'staff') ...[
-              _buildDrawerItem(
-                context,
-                'Sales / POS',
-                Icons.point_of_sale,
-                '/sales_pos',
-              ),
-              _buildDrawerItem(
-                context,
-                'Inventory Logs',
-                Icons.history,
-                '/inventory_logs',
-              ),
-              _buildDrawerItem(
-                context,
-                'Reports',
-                Icons.bar_chart,
-                '/reports',
-              ),
-            ],
+            _buildDrawerItem(context, 'Products', Icons.inventory_2, AppRouter.productInventoryRoute),
+            _buildDrawerItem(context, 'Sales / POS', Icons.point_of_sale, AppRouter.salesPosRoute),
+            _buildDrawerItem(context, 'Inventory Logs', Icons.inventory, AppRouter.inventoryLogsRoute),
+            _buildDrawerItem(context, 'Reports', Icons.bar_chart, AppRouter.reportsRoute),
           ],
-          _buildDrawerItem(
-            context,
-            'Appointments',
-            Icons.calendar_today,
-            '/appointment_management',
-          ),
-          _buildDrawerItem(
-            context,
-            'Products',
-            Icons.inventory,
-            '/product_inventory',
-          ),
           const Divider(),
-          _buildDrawerItem(
-            context,
-            'Settings',
-            Icons.settings,
-            '/settings',
-          ),
-          _buildDrawerItem(
-            context,
-            'Profile',
-            Icons.person,
-            '/profile_settings',
-          ),
+          _buildDrawerItem(context, 'Settings', Icons.settings, AppRouter.settingsRoute),
+          _buildDrawerItem(context, 'Profile', Icons.person, AppRouter.profileSettingsRoute),
           ListTile(
-            leading: const Icon(Icons.logout),
+            leading: const Icon(Icons.logout, color: AppTheme.primaryGreen),
             title: const Text('Logout'),
-            onTap: () => _showLogoutDialog(context, userProvider),
+            onTap: () => _showLogoutDialog(context, auth),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDrawerItem(BuildContext context, String title, IconData icon, String route) {
-    final isSelected = currentRoute == route;
+  Widget _buildDrawerItem(
+    BuildContext context,
+    String title,
+    IconData icon,
+    String route, {
+    bool isSelected = false,
+  }) {
     return ListTile(
-      leading: Icon(icon, color: isSelected ? Theme.of(context).colorScheme.primary : null),
+      leading: Icon(
+        icon,
+        color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade700,
+      ),
       title: Text(
         title,
         style: TextStyle(
-          color: isSelected ? Theme.of(context).colorScheme.primary : null,
-          fontWeight: isSelected ? FontWeight.bold : null,
+          color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade800,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
       ),
-      selected: isSelected,
+selected: isSelected,
+      selectedTileColor: const Color(0xFF2E7D32).withValues(alpha: 0.10),
       onTap: () {
-        Navigator.pop(context); // Close drawer
-        if (currentRoute != route) {
-          Navigator.pushReplacementNamed(context, route);
-        }
+        // Close the drawer first; then navigate.
+        Navigator.pop(context);
+        if (currentRoute == route) return;
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          route,
+          (r) => false, // Remove all previous routes to prevent back navigation to splash
+        );
       },
     );
   }
 
-  static void _showLogoutDialog(BuildContext context, UserProvider userProvider) {
+  static void _showLogoutDialog(BuildContext context, AuthProvider authProvider) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -213,16 +217,16 @@ class AppDrawer extends StatelessWidget {
           actions: <Widget>[
             TextButton(
               child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+              onPressed: () => Navigator.of(context).pop(),
             ),
             TextButton(
               child: const Text('Logout'),
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(context).pop();
-                userProvider.logout();
-                Navigator.pushReplacementNamed(context, '/login');
+                await authProvider.signOut();
+                if (context.mounted) {
+                  Navigator.pushNamedAndRemoveUntil(context, '/login', (r) => false);
+                }
               },
             ),
           ],
@@ -231,4 +235,3 @@ class AppDrawer extends StatelessWidget {
     );
   }
 }
-

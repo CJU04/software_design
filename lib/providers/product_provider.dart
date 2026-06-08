@@ -22,13 +22,13 @@ class ProductProvider with ChangeNotifier {
     await loadProducts();
   }
 
-  Future<void> deleteProduct(int id) async {
+  Future<void> deleteProduct(String id) async {
     await DatabaseService().deleteProduct(id);
     await loadProducts();
   }
 
   List<Product> searchProducts(String query) {
-    return _products.where((product) => product.productname.toLowerCase().contains(query.toLowerCase())).toList();
+    return _products.where((product) => product.productName.toLowerCase().contains(query.toLowerCase())).toList();
   }
 
   List<Product> filterProductsByCategory(String category) {

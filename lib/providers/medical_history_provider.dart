@@ -12,17 +12,18 @@ class MedicalHistoryProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loadMedicalHistoriesForUser(int userid) async {
+  Future<void> loadMedicalHistoriesForOwner(String ownerUid) async {
+    final pets = await DatabaseService().getPetsByOwner(ownerUid);
+    final petIds = pets.map((p) => p.petId).toSet();
     _medicalHistories = await DatabaseService().getMedicalHistories();
-    // Filter medical histories where the pet belongs to the user
-    List<int> userPetIds = (await DatabaseService().getPets()).where((pet) => pet.userid == userid).map((pet) => pet.petid!).toList();
-    _medicalHistories = _medicalHistories.where((history) => userPetIds.contains(history.petid)).toList();
+    _medicalHistories = _medicalHistories.where((h) => petIds.contains(h.petId)).toList();
     notifyListeners();
   }
 
-  Future<void> addMedicalHistory(MedicalHistory history) async {
-    await DatabaseService().insertMedicalHistory(history);
+  Future<String> addMedicalHistory(MedicalHistory history) async {
+    final id = await DatabaseService().insertMedicalHistory(history);
     await loadMedicalHistories();
+    return id;
   }
 
   Future<void> updateMedicalHistory(MedicalHistory history) async {
@@ -30,17 +31,12 @@ class MedicalHistoryProvider with ChangeNotifier {
     await loadMedicalHistories();
   }
 
-  Future<void> deleteMedicalHistory(int id) async {
+  Future<void> deleteMedicalHistory(String id) async {
     await DatabaseService().deleteMedicalHistory(id);
     await loadMedicalHistories();
   }
 
-  List<MedicalHistory> getMedicalHistoriesByPet(int petid) {
-    return _medicalHistories.where((history) => history.petid == petid).toList();
-  }
-
-  List<MedicalHistory> getMedicalHistoriesByAppointment(int appointmentid) {
-    return _medicalHistories.where((history) => history.appointmentid == appointmentid).toList();
+  List<MedicalHistory> getMedicalHistoriesByPet(String petId) {
+    return _medicalHistories.where((h) => h.petId == petId).toList();
   }
 }
-

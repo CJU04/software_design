@@ -1,4 +1,4 @@
- import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:vetcare_connect/models/sale_item.dart';
 import 'package:vetcare_connect/services/database_service.dart';
 
@@ -12,9 +12,10 @@ class SaleItemProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addSaleItem(SaleItem item) async {
-    await DatabaseService().insertSaleItem(item);
+  Future<String> addSaleItem(SaleItem item) async {
+    final id = await DatabaseService().insertSaleItem(item);
     await loadSaleItems();
+    return id;
   }
 
   Future<void> updateSaleItem(SaleItem item) async {
@@ -22,13 +23,12 @@ class SaleItemProvider with ChangeNotifier {
     await loadSaleItems();
   }
 
-  Future<void> deleteSaleItem(int id) async {
+  Future<void> deleteSaleItem(String id) async {
     await DatabaseService().deleteSaleItem(id);
     await loadSaleItems();
   }
 
-  List<SaleItem> getSaleItemsBySale(int saleid) {
-    return _saleItems.where((item) => item.saleid == saleid).toList();
+  List<SaleItem> getSaleItemsBySale(String saleId) {
+    return _saleItems.where((i) => i.saleId == saleId).toList();
   }
 }
-

@@ -1,12 +1,12 @@
 class InventoryLog {
-  int? inventoryLogId;
-  int productId; // FK to Product
+  String? logId;
+  String productId; // FK to Product.productId
   String date;
   int quantityChange;
   String reason;
 
   InventoryLog({
-    this.inventoryLogId,
+    this.logId,
     required this.productId,
     required this.date,
     required this.quantityChange,
@@ -15,22 +15,37 @@ class InventoryLog {
 
   Map<String, dynamic> toMap() {
     return {
-      'inventory_logid': inventoryLogId,
-      'productid': productId,
+      'logId': logId,
+      'productId': productId,
       'date': date,
-      'quantity_change': quantityChange,
+      'quantityChange': quantityChange,
       'reason': reason,
     };
   }
 
   factory InventoryLog.fromMap(Map<String, dynamic> map) {
     return InventoryLog(
-      inventoryLogId: map['inventory_logid'],
-      productId: map['productid'],
-      date: map['date'],
-      quantityChange: map['quantity_change'],
-      reason: map['reason'],
+      logId: map['logId'] as String?,
+      productId: map['productId'] as String? ?? '',
+      date: map['date'] as String? ?? '',
+      quantityChange: map['quantityChange'] as int? ?? 0,
+      reason: map['reason'] as String? ?? '',
+    );
+  }
+
+  InventoryLog copyWith({
+    String? logId,
+    String? productId,
+    String? date,
+    int? quantityChange,
+    String? reason,
+  }) {
+    return InventoryLog(
+      logId: logId ?? this.logId,
+      productId: productId ?? this.productId,
+      date: date ?? this.date,
+      quantityChange: quantityChange ?? this.quantityChange,
+      reason: reason ?? this.reason,
     );
   }
 }
-

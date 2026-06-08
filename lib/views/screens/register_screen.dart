@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:vetcare_connect/models/user_role.dart';
 import 'package:vetcare_connect/providers/auth_provider.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:vetcare_connect/config/admin_config.dart';
@@ -19,9 +18,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _contactNumberController = TextEditingController();
   final _emailController = TextEditingController();
   final _addressController = TextEditingController();
-  UserRole _selectedRole = UserRole.petOwner;
+  UserRole _selectedRole = UserRole.customer;
   bool _isPasswordVisible = false;
   final _adminCodeController = TextEditingController();
+  bool _acceptPrivacyPolicy = false;
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -70,9 +71,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             border: const OutlineInputBorder(),
                           ),
                           obscureText: !_isPasswordVisible,
+                          maxLength: 128,
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Please enter a password';
+                            }
+                            if (value.length < 8) {
+                              return 'Password must be at least 8 characters';
                             }
                             return null;
                           },
@@ -85,6 +90,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             prefixIcon: Icon(Icons.person_outline),
                             border: OutlineInputBorder(),
                           ),
+                          maxLength: 100,
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Please enter your full name';
@@ -100,6 +106,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             prefixIcon: Icon(Icons.phone),
                             border: OutlineInputBorder(),
                           ),
+                          maxLength: 20,
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Please enter your contact number';
@@ -115,9 +122,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             prefixIcon: Icon(Icons.email),
                             border: OutlineInputBorder(),
                           ),
+                          maxLength: 254,
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Please enter your email';
+                            }
+                            final emailRegex = RegExp(r'^[\w.%+-]+@[\w.-]+\.[a-zA-Z]{2,}$');
+                            if (!emailRegex.hasMatch(value)) {
+                              return 'Please enter a valid email address';
                             }
                             return null;
                           },
@@ -130,6 +142,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             prefixIcon: Icon(Icons.home),
                             border: OutlineInputBorder(),
                           ),
+                          maxLength: 200,
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Please enter your address';
@@ -139,7 +152,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<UserRole>(
-                          initialValue: _selectedRole,
+                          value: _selectedRole,
                           decoration: const InputDecoration(
                             labelText: 'Role',
                             prefixIcon: Icon(Icons.group),
@@ -178,13 +191,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           const SizedBox(height: 16),
                         ],
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 16),
+                        // Data Privacy Act checkbox
+                        CheckboxListTile(
+                          value: _acceptPrivacyPolicy,
+                          onChanged: (value) {
+                            setState(() {
+                              _acceptPrivacyPolicy = value ?? false;
+                            });
+                          },
+                          title: Text(
+                            'I agree to the Data Privacy Act of the Philippines (Republic Act No. 10173) and consent to the collection and processing of my personal data.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                          controlAffinity: ListTileControlAffinity.leading,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        const SizedBox(height: 16),
                         ElevatedButton(
-                          onPressed: _register,
+                          onPressed: (_acceptPrivacyPolicy && !_isLoading) ? _register : null,
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
-                          child: const Text('Register'),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text('Register'),
                         ),
                         const SizedBox(height: 16),
                         TextButton(
@@ -207,14 +248,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   void _register() async {
     if (_formKey.currentState!.validate()) {
+      if (!_acceptPrivacyPolicy) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please accept the Data Privacy Act terms and conditions.')),
+        );
+        return;
+      }
+      setState(() {
+        _isLoading = true;
+      });
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final messenger = ScaffoldMessenger.of(context);
 
       try {
         // If registering as admin, require correct verification code.
         if (_selectedRole == UserRole.admin) {
+          final configured = adminVerificationCode;
+          // Fail closed: admin registration is disabled when no secret is configured.
+          if (configured.isEmpty) {
+            messenger.showSnackBar(
+              const SnackBar(content: Text('Admin registration is not available.')),
+            );
+            return;
+          }
           final provided = _adminCodeController.text.trim();
-          if (provided.isEmpty || provided != kAdminVerificationCode) {
+          if (provided.isEmpty || provided != configured) {
             messenger.showSnackBar(
               const SnackBar(content: Text('Invalid admin verification code.')),
             );
@@ -223,14 +281,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
 
         // When admin is requested, register the user with a safe default role
-        // (petOwner) and then call a callable function to request promotion.
-        final registerRole = _selectedRole == UserRole.admin ? UserRole.petOwner : _selectedRole;
+        // (customer) and then call a callable function to request promotion.
+        final registerRole = _selectedRole == UserRole.admin ? UserRole.customer : _selectedRole;
 
         await authProvider.registerWithEmailPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text,
           name: _fullnameController.text,
           role: registerRole,
+          contactNumber: _contactNumberController.text.trim(),
+          address: _addressController.text.trim(),
         );
 
         // If admin was selected, call Cloud Function to request promotion.
@@ -256,10 +316,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
         Navigator.pushReplacementNamed(context, '/login');
 
-      } on Exception catch (e) {
-        messenger.showSnackBar(SnackBar(content: Text('Registration failed: $e')));
-      } catch (e) {
-        messenger.showSnackBar(SnackBar(content: Text('Registration failed: $e')));
+      } on Exception {
+        // Show a safe, user-friendly message without leaking system details.
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Registration failed. Please try again.')),
+        );
+      } catch (_) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Registration failed. Please try again.')),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }

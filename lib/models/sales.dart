@@ -1,17 +1,17 @@
 class Sales {
-  int? saleid;
-  int userid; // FK to User
+  String? saleId;
+  String ownerUid; // FK to FirebaseUser.uid
   String date;
-  double totalamount;
+  double totalAmount;
   String paymentStatus;
   String paymentMethod;
   String paymentDate;
 
   Sales({
-    this.saleid,
-    required this.userid,
+    this.saleId,
+    required this.ownerUid,
     required this.date,
-    required this.totalamount,
+    required this.totalAmount,
     required this.paymentStatus,
     required this.paymentMethod,
     required this.paymentDate,
@@ -19,26 +19,45 @@ class Sales {
 
   Map<String, dynamic> toMap() {
     return {
-      'saleid': saleid,
-      'userid': userid,
+      'saleId': saleId,
+      'ownerUid': ownerUid,
       'date': date,
-      'totalamount': totalamount,
-      'payment_status': paymentStatus,
-      'payment_method': paymentMethod,
-      'payment_date': paymentDate,
+      'totalAmount': totalAmount,
+      'paymentStatus': paymentStatus,
+      'paymentMethod': paymentMethod,
+      'paymentDate': paymentDate,
     };
   }
 
   factory Sales.fromMap(Map<String, dynamic> map) {
     return Sales(
-      saleid: map['saleid'],
-      userid: map['userid'],
-      date: map['date'],
-      totalamount: map['totalamount'],
-      paymentStatus: map['payment_status'],
-      paymentMethod: map['payment_method'],
-      paymentDate: map['payment_date'],
+      saleId: map['saleId'] as String?,
+      ownerUid: map['ownerUid'] as String? ?? '',
+      date: map['date'] as String? ?? '',
+      totalAmount: (map['totalAmount'] as num?)?.toDouble() ?? 0.0,
+      paymentStatus: map['paymentStatus'] as String? ?? '',
+      paymentMethod: map['paymentMethod'] as String? ?? '',
+      paymentDate: map['paymentDate'] as String? ?? '',
+    );
+  }
+
+  Sales copyWith({
+    String? saleId,
+    String? ownerUid,
+    String? date,
+    double? totalAmount,
+    String? paymentStatus,
+    String? paymentMethod,
+    String? paymentDate,
+  }) {
+    return Sales(
+      saleId: saleId ?? this.saleId,
+      ownerUid: ownerUid ?? this.ownerUid,
+      date: date ?? this.date,
+      totalAmount: totalAmount ?? this.totalAmount,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      paymentDate: paymentDate ?? this.paymentDate,
     );
   }
 }
-

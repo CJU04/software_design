@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:vetcare_connect/providers/auth_provider.dart';
-import '../../models/user_role.dart';
 import '../../routes/app_router.dart';
 
 import 'register_screen.dart';
@@ -20,6 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -125,11 +125,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
                             const SizedBox(height: 32),
                             ElevatedButton(
-                              onPressed: _login,
+                              onPressed: _isLoading ? null : _login,
                               style: ElevatedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(vertical: 16),
                               ),
-                              child: const Text('Login'),
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text('Login'),
                             ),
                             const SizedBox(height: 16),
 
@@ -169,6 +178,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _login() async {
     if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final messenger = ScaffoldMessenger.of(context);
 
@@ -185,7 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // Navigate using role-based routes (must match AppRouter).
         final nextRoute = switch (authProvider.role) {
           UserRole.admin => AppRouter.adminDashboardRoute,
-          UserRole.petOwner => AppRouter.petOwnerDashboardRoute,
+          UserRole.customer => AppRouter.customerDashboardRoute,
           UserRole.staff => AppRouter.staffDashboardRoute,
           UserRole.veterinarian => AppRouter.veterinarianDashboardRoute,
           null => AppRouter.loginRoute,
@@ -195,8 +207,15 @@ class _LoginScreenState extends State<LoginScreen> {
       } catch (e) {
         if (!mounted) return;
         messenger.showSnackBar(
-          SnackBar(content: Text('Login failed: $e')),
+          const SnackBar(content: Text('Login failed. Please check your credentials.'),
+          ),
         );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }

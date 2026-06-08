@@ -1,5 +1,3 @@
-import 'package:vetcare_connect/models/user.dart';
-
 import '../models/pet.dart';
 import '../models/appointment.dart';
 import '../models/medical_history.dart';
@@ -10,7 +8,7 @@ import '../models/inventory_log.dart';
 
 import 'firestore_database_service.dart';
 
-/// DatabaseService now points to Firebase (Firestore) instead of local SQLite.
+/// DatabaseService wrapper — delegates to FirestoreDatabaseService using Firebase Auth UIDs.
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
   factory DatabaseService() => _instance;
@@ -19,56 +17,54 @@ class DatabaseService {
   final FirestoreDatabaseService _store = FirestoreDatabaseService();
 
   // User
-  Future<int> insertUser(User user) => _store.insertUser(user);
-  Future<List<User>> getUsers() => _store.getUsers();
-  Future<int> updateUser(User user) => _store.updateUser(user);
-  Future<int> deleteUser(int id) => _store.deleteUser(id);
-  Future<bool> isUsernameExists(String username) => _store.isUsernameExists(username);
-  Future<bool> isEmailExists(String email) => _store.isEmailExists(email);
+  Future<void> insertUser(Map<String, dynamic> data) => _store.insertUser(data);
 
   // Pet
-  Future<int> insertPet(Pet pet) => _store.insertPet(pet);
+  Future<String> insertPet(Pet pet) => _store.insertPet(pet);
   Future<List<Pet>> getPets() => _store.getPets();
-  Future<int> updatePet(Pet pet) => _store.updatePet(pet);
-  Future<int> deletePet(int id) => _store.deletePet(id);
+  Future<List<Pet>> getPetsByOwner(String ownerUid) => _store.getPetsByOwner(ownerUid);
+  Future<void> updatePet(Pet pet) => _store.updatePet(pet);
+  Future<void> deletePet(String id) => _store.deletePet(id);
 
   // Appointment
-  Future<int> insertAppointment(Appointment appointment) => _store.insertAppointment(appointment);
+  Future<String> insertAppointment(Appointment appointment) => _store.insertAppointment(appointment);
   Future<List<Appointment>> getAppointments() => _store.getAppointments();
-  Future<List<Appointment>> getAppointmentsByUser(int userId) => _store.getAppointmentsByUser(userId);
-  Future<int> updateAppointment(Appointment appointment) => _store.updateAppointment(appointment);
-  Future<int> deleteAppointment(int id) => _store.deleteAppointment(id);
+  Future<List<Appointment>> getAppointmentsByOwner(String ownerUid) => _store.getAppointmentsByOwner(ownerUid);
+  Future<List<Appointment>> getAppointmentsByPet(String petId) => _store.getAppointmentsByPet(petId);
+  Future<void> updateAppointment(Appointment appointment) => _store.updateAppointment(appointment);
+  Future<void> deleteAppointment(String id) => _store.deleteAppointment(id);
 
   // MedicalHistory
-  Future<int> insertMedicalHistory(MedicalHistory medicalHistory) => _store.insertMedicalHistory(medicalHistory);
+  Future<String> insertMedicalHistory(MedicalHistory history) => _store.insertMedicalHistory(history);
   Future<List<MedicalHistory>> getMedicalHistories() => _store.getMedicalHistories();
-  Future<int> updateMedicalHistory(MedicalHistory medicalHistory) => _store.updateMedicalHistory(medicalHistory);
-  Future<int> deleteMedicalHistory(int id) => _store.deleteMedicalHistory(id);
+  Future<List<MedicalHistory>> getMedicalHistoriesByPet(String petId) => _store.getMedicalHistoriesByPet(petId);
+  Future<void> updateMedicalHistory(MedicalHistory history) => _store.updateMedicalHistory(history);
+  Future<void> deleteMedicalHistory(String id) => _store.deleteMedicalHistory(id);
 
   // Product
-  Future<int> insertProduct(Product product) => _store.insertProduct(product);
+  Future<String> insertProduct(Product product) => _store.insertProduct(product);
   Future<List<Product>> getProducts() => _store.getProducts();
-  Future<int> updateProduct(Product product) => _store.updateProduct(product);
-  Future<int> deleteProduct(int id) => _store.deleteProduct(id);
+  Future<void> updateProduct(Product product) => _store.updateProduct(product);
+  Future<void> deleteProduct(String id) => _store.deleteProduct(id);
 
   // Sales
-  Future<int> insertSales(Sales sales) => _store.insertSales(sales);
+  Future<String> insertSales(Sales sales) => _store.insertSales(sales);
   Future<List<Sales>> getSales() => _store.getSales();
-  Future<int> updateSales(Sales sales) => _store.updateSales(sales);
-  Future<int> deleteSales(int id) => _store.deleteSales(id);
+  Future<List<Sales>> getSalesByOwner(String ownerUid) => _store.getSalesByOwner(ownerUid);
+  Future<void> updateSales(Sales sales) => _store.updateSales(sales);
+  Future<void> deleteSales(String id) => _store.deleteSales(id);
 
   // SaleItem
-  Future<int> insertSaleItem(SaleItem saleItem) => _store.insertSaleItem(saleItem);
+  Future<String> insertSaleItem(SaleItem item) => _store.insertSaleItem(item);
   Future<List<SaleItem>> getSaleItems() => _store.getSaleItems();
-  Future<int> updateSaleItem(SaleItem saleItem) => _store.updateSaleItem(saleItem);
-  Future<int> deleteSaleItem(int id) => _store.deleteSaleItem(id);
+  Future<List<SaleItem>> getSaleItemsBySale(String saleId) => _store.getSaleItemsBySale(saleId);
+  Future<void> updateSaleItem(SaleItem item) => _store.updateSaleItem(item);
+  Future<void> deleteSaleItem(String id) => _store.deleteSaleItem(id);
 
   // InventoryLog
-  Future<int> insertInventoryLog(InventoryLog inventoryLog) => _store.insertInventoryLog(inventoryLog);
+  Future<String> insertInventoryLog(InventoryLog log) => _store.insertInventoryLog(log);
   Future<List<InventoryLog>> getInventoryLogs() => _store.getInventoryLogs();
-  Future<int> updateInventoryLog(InventoryLog inventoryLog) => _store.updateInventoryLog(inventoryLog);
-  Future<int> deleteInventoryLog(int id) => _store.deleteInventoryLog(id);
+  Future<List<InventoryLog>> getInventoryLogsByProduct(String productId) => _store.getInventoryLogsByProduct(productId);
+  Future<void> updateInventoryLog(InventoryLog log) => _store.updateInventoryLog(log);
+  Future<void> deleteInventoryLog(String id) => _store.deleteInventoryLog(id);
 }
-
-
-

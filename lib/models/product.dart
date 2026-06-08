@@ -1,40 +1,57 @@
 class Product {
-  int? productid;
-  String productname;
+  String? productId;
+  String productName;
   String category;
   String description;
   double price;
-  int stockquantity;
+  int stockQuantity;
 
   Product({
-    this.productid,
-    required this.productname,
+    this.productId,
+    required this.productName,
     required this.category,
     required this.description,
     required this.price,
-    required this.stockquantity,
+    required this.stockQuantity,
   });
 
   Map<String, dynamic> toMap() {
     return {
-      'productid': productid,
-      'productname': productname,
+      'productId': productId,
+      'productName': productName,
       'category': category,
       'description': description,
       'price': price,
-      'stockquantity': stockquantity,
+      'stockQuantity': stockQuantity,
     };
   }
 
   factory Product.fromMap(Map<String, dynamic> map) {
     return Product(
-      productid: map['productid'],
-      productname: map['productname'],
-      category: map['category'],
-      description: map['description'],
-      price: map['price'],
-      stockquantity: map['stockquantity'],
+      productId: map['productId'] as String?,
+      productName: map['productName'] as String? ?? '',
+      category: map['category'] as String? ?? '',
+      description: map['description'] as String? ?? '',
+      price: (map['price'] as num?)?.toDouble() ?? 0.0,
+      stockQuantity: map['stockQuantity'] as int? ?? 0,
+    );
+  }
+
+  Product copyWith({
+    String? productId,
+    String? productName,
+    String? category,
+    String? description,
+    double? price,
+    int? stockQuantity,
+  }) {
+    return Product(
+      productId: productId ?? this.productId,
+      productName: productName ?? this.productName,
+      category: category ?? this.category,
+      description: description ?? this.description,
+      price: price ?? this.price,
+      stockQuantity: stockQuantity ?? this.stockQuantity,
     );
   }
 }
-

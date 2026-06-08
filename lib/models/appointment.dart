@@ -1,17 +1,17 @@
 class Appointment {
-  int? appointmentid;
-  int petid; // FK to Pet
-  int userid; // FK to User (customer who booked)
-  int? assignedUserId; // FK to User (staff/vet assigned)
+  String? appointmentId;
+  String petId; // FK to Pet.petId
+  String ownerUid; // FK to FirebaseUser.uid (customer who booked)
+  String? assignedUserId; // FK to FirebaseUser.uid (staff/vet assigned)
   String date;
   String time;
   String reason;
   String status;
 
   Appointment({
-    this.appointmentid,
-    required this.petid,
-    required this.userid,
+    this.appointmentId,
+    required this.petId,
+    required this.ownerUid,
     this.assignedUserId,
     required this.date,
     required this.time,
@@ -21,9 +21,9 @@ class Appointment {
 
   Map<String, dynamic> toMap() {
     return {
-      'appointmentid': appointmentid,
-      'petid': petid,
-      'userid': userid,
+      'appointmentId': appointmentId,
+      'petId': petId,
+      'ownerUid': ownerUid,
       'assignedUserId': assignedUserId,
       'date': date,
       'time': time,
@@ -34,15 +34,36 @@ class Appointment {
 
   factory Appointment.fromMap(Map<String, dynamic> map) {
     return Appointment(
-      appointmentid: map['appointmentid'],
-      petid: map['petid'],
-      userid: map['userid'],
-      assignedUserId: map['assignedUserId'],
-      date: map['date'],
-      time: map['time'],
-      reason: map['reason'],
-      status: map['status'],
+      appointmentId: map['appointmentId'] as String?,
+      petId: map['petId'] as String? ?? '',
+      ownerUid: map['ownerUid'] as String? ?? '',
+      assignedUserId: map['assignedUserId'] as String?,
+      date: map['date'] as String? ?? '',
+      time: map['time'] as String? ?? '',
+      reason: map['reason'] as String? ?? '',
+      status: map['status'] as String? ?? '',
+    );
+  }
+
+  Appointment copyWith({
+    String? appointmentId,
+    String? petId,
+    String? ownerUid,
+    String? assignedUserId,
+    String? date,
+    String? time,
+    String? reason,
+    String? status,
+  }) {
+    return Appointment(
+      appointmentId: appointmentId ?? this.appointmentId,
+      petId: petId ?? this.petId,
+      ownerUid: ownerUid ?? this.ownerUid,
+      assignedUserId: assignedUserId ?? this.assignedUserId,
+      date: date ?? this.date,
+      time: time ?? this.time,
+      reason: reason ?? this.reason,
+      status: status ?? this.status,
     );
   }
 }
-

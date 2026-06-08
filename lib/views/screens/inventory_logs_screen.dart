@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:vetcare_connect/models/inventory_log.dart';
 import 'package:vetcare_connect/models/product.dart';
+import 'package:vetcare_connect/providers/auth_provider.dart';
 import 'package:vetcare_connect/providers/inventory_log_provider.dart';
 import 'package:vetcare_connect/providers/product_provider.dart';
-import 'package:vetcare_connect/providers/user_provider.dart';
 import 'package:vetcare_connect/views/widgets/drawer_widget.dart';
 import 'package:vetcare_connect/views/screens/access_denied_screen.dart';
 
@@ -28,9 +28,9 @@ class _InventoryLogsScreenState extends State<InventoryLogsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = Provider.of<UserProvider>(context);
-    final currentUser = userProvider.currentUser;
-    final isCustomer = currentUser?.usertype == 'customer';
+    final authProvider = Provider.of<AuthProvider>(context);
+    final role = authProvider.role;
+    final isCustomer = role?.value == 'customer';
 
     if (isCustomer) {
       return const AccessDeniedScreen();
@@ -55,56 +55,84 @@ class _InventoryLogsScreenState extends State<InventoryLogsScreen> {
         title: const Text('Inventory Logs'),
       ),
       drawer: const AppDrawer(currentRoute: '/inventory_logs'),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: const InputDecoration(
-                labelText: 'Search Inventory Logs',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
-            ),
-          ),
-          Expanded(
-            child: inventoryLogs.isEmpty
-                ? const Center(
-                    child: Text('No inventory logs found'),
-                  )
-                : ListView.builder(
-                    itemCount: inventoryLogs.length,
-                    itemBuilder: (context, index) {
-                      final log = inventoryLogs[index];
-                      final product = products.firstWhere(
-                        (p) => p.productid == log.productId,
-                        orElse: () => Product(
-                          productname: 'Unknown Product',
-                          category: '',
-                          description: '',
-                          price: 0.0,
-                          stockquantity: 0,
-                        ),
-                      );
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            double maxWidth = constraints.maxWidth > 600 ? 800 : double.infinity;
+            double horizontalPadding =
+                constraints.maxWidth > 600 ? (constraints.maxWidth - 800) / 2 : 0;
 
-                      return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                        child: ListTile(
-                          leading: const Icon(Icons.history),
-                          title: Text('${product.productname} - ${log.reason}'),
-                          subtitle: Text('${log.date} - Qty: ${log.quantityChange}'),
+            return CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: maxWidth),
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: const InputDecoration(
+                          labelText: 'Search Inventory Logs',
+                          prefixIcon: Icon(Icons.search),
+                          border: OutlineInputBorder(),
                         ),
-                      );
-                    },
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value;
+                          });
+                        },
+                      ),
+                    ),
                   ),
-          ),
-        ],
+                ),
+                inventoryLogs.isEmpty
+                    ? const SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: Text('No inventory logs found'),
+                        ),
+                      )
+                    : SliverPadding(
+                        padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                        sliver: SliverList.builder(
+                          itemCount: inventoryLogs.length,
+                          itemBuilder: (context, index) {
+                            final log = inventoryLogs[index];
+                            final product = products.firstWhere(
+                              (p) => p.productId == log.productId,
+                              orElse: () => Product(
+                                productName: 'Unknown Product',
+                                category: '',
+                                description: '',
+                                price: 0.0,
+                                stockQuantity: 0,
+                              ),
+                            );
+
+                            return Card(
+                              margin: const EdgeInsets.symmetric(
+                                  horizontal: 16.0, vertical: 8.0),
+                              child: ListTile(
+                                leading: const Icon(Icons.history),
+                                title: Text(
+                                  '${product.productName} - ${log.reason}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  '${log.date} - Qty: ${log.quantityChange}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

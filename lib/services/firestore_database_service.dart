@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../models/user.dart';
 import '../models/pet.dart';
 import '../models/appointment.dart';
 import '../models/medical_history.dart';
@@ -9,21 +8,21 @@ import '../models/sales.dart';
 import '../models/sale_item.dart';
 import '../models/inventory_log.dart';
 
-/// Firestore-backed replacement for the previous SQLite `DatabaseService`.
+/// Firestore-backed service using Firebase Auth UIDs as document IDs.
 ///
-/// Collections used (mapped 1:1 to your former table names):
-/// - user
-/// - pet
-/// - appointment
-/// - medical_history
-/// - product
+/// Collections used:
+/// - pets
+/// - appointments
+/// - medical_histories
+/// - products
 /// - sales
-/// - sale_item
-/// - inventory_log
+/// - sale_items
+/// - inventory_logs
 class FirestoreDatabaseService {
   final FirebaseFirestore _db;
 
-  FirestoreDatabaseService({FirebaseFirestore? firestore}) : _db = firestore ?? FirebaseFirestore.instance;
+  FirestoreDatabaseService({FirebaseFirestore? firestore})
+      : _db = firestore ?? FirebaseFirestore.instance;
 
   CollectionReference<Map<String, dynamic>> _col(String name) {
     return _db.collection(name);
@@ -32,225 +31,173 @@ class FirestoreDatabaseService {
   // --------------------
   // User
   // --------------------
-  Future<int> insertUser(User user) async {
-    // Use userid as document id if available, otherwise auto-id.
-    final data = user.toMap();
-    final int? id = user.userid;
-
-    if (id != null) {
-      await _col('user').doc(id.toString()).set(data);
-      return id;
-    }
-
-    final docRef = await _col('user').add(data);
-    final parsed = int.tryParse(docRef.id);
-    if (parsed != null) return parsed;
-    return 0;
-  }
-
-  Future<List<User>> getUsers() async {
-    final snap = await _col('user').get();
-    return snap.docs.map((d) => User.fromMap(d.data())).toList();
-  }
-
-  Future<int> updateUser(User user) async {
-    if (user.userid == null) {
-      throw ArgumentError('updateUser requires user.userid');
-    }
-
-    await _col('user').doc(user.userid.toString()).set(user.toMap(), SetOptions(merge: true));
-    return user.userid!;
-  }
-
-  Future<int> deleteUser(int id) async {
-    await _col('user').doc(id.toString()).delete();
-    return id;
-  }
-
-  Future<bool> isUsernameExists(String username) async {
-    final q = await _col('user').where('username', isEqualTo: username).limit(1).get();
-    return q.docs.isNotEmpty;
-  }
-
-  Future<bool> isEmailExists(String email) async {
-    final q = await _col('user').where('email', isEqualTo: email).limit(1).get();
-    return q.docs.isNotEmpty;
+  Future<void> insertUser(Map<String, dynamic> data) async {
+    await _col('users').doc(data['uid'] as String).set(data);
   }
 
   // --------------------
   // Pet
   // --------------------
-  Future<int> insertPet(Pet pet) async {
+  Future<String> insertPet(Pet pet) async {
     final data = pet.toMap();
-    final int? id = pet.petid;
-
-    if (id != null) {
-      await _col('pet').doc(id.toString()).set(data);
-      return id;
+    if (pet.petId != null) {
+      await _col('pets').doc(pet.petId).set(data);
+      return pet.petId!;
     }
-
-    final docRef = await _col('pet').add(data);
-    final parsed = int.tryParse(docRef.id);
-    if (parsed != null) return parsed;
-    return 0;
+    final docRef = await _col('pets').add(data);
+    // Store the auto-generated ID in the document for later retrieval
+    await docRef.update({'petId': docRef.id});
+    return docRef.id;
   }
 
   Future<List<Pet>> getPets() async {
-    final snap = await _col('pet').get();
+    final snap = await _col('pets').get();
     return snap.docs.map((d) => Pet.fromMap(d.data())).toList();
   }
 
-  Future<int> updatePet(Pet pet) async {
-    if (pet.petid == null) {
-      throw ArgumentError('updatePet requires pet.petid');
+  Future<void> updatePet(Pet pet) async {
+    if (pet.petId == null) {
+      throw ArgumentError('updatePet requires pet.petId');
     }
-
-    await _col('pet').doc(pet.petid.toString()).set(pet.toMap(), SetOptions(merge: true));
-    return pet.petid!;
+    await _col('pets').doc(pet.petId).set(pet.toMap(), SetOptions(merge: true));
   }
 
-  Future<int> deletePet(int id) async {
-    await _col('pet').doc(id.toString()).delete();
-    return id;
+  Future<void> deletePet(String id) async {
+    await _col('pets').doc(id).delete();
+  }
+
+  Future<List<Pet>> getPetsByOwner(String ownerUid) async {
+    final snap = await _col('pets').where('ownerUid', isEqualTo: ownerUid).get();
+    return snap.docs.map((d) => Pet.fromMap(d.data())).toList();
   }
 
   // --------------------
   // Appointment
   // --------------------
-  Future<int> insertAppointment(Appointment appointment) async {
+  Future<String> insertAppointment(Appointment appointment) async {
     final data = appointment.toMap();
-    final int? id = appointment.appointmentid;
-
-    if (id != null) {
-      await _col('appointment').doc(id.toString()).set(data);
-      return id;
+    if (appointment.appointmentId != null) {
+      await _col('appointments').doc(appointment.appointmentId).set(data);
+      return appointment.appointmentId!;
     }
-
-    final docRef = await _col('appointment').add(data);
-    final parsed = int.tryParse(docRef.id);
-    if (parsed != null) return parsed;
-    return 0;
+    final docRef = await _col('appointments').add(data);
+    return docRef.id;
   }
 
   Future<List<Appointment>> getAppointments() async {
-    final snap = await _col('appointment').get();
+    final snap = await _col('appointments').get();
     return snap.docs.map((d) => Appointment.fromMap(d.data())).toList();
   }
 
-  Future<List<Appointment>> getAppointmentsByUser(int userId) async {
-    final q = await _col('appointment').where('userid', isEqualTo: userId).get();
-    return q.docs.map((d) => Appointment.fromMap(d.data())).toList();
+  Future<List<Appointment>> getAppointmentsByOwner(String ownerUid) async {
+    final snap =
+        await _col('appointments').where('ownerUid', isEqualTo: ownerUid).get();
+    return snap.docs.map((d) => Appointment.fromMap(d.data())).toList();
   }
 
-  Future<int> updateAppointment(Appointment appointment) async {
-    if (appointment.appointmentid == null) {
-      throw ArgumentError('updateAppointment requires appointment.appointmentid');
-    }
+  Future<List<Appointment>> getAppointmentsByPet(String petId) async {
+    final snap =
+        await _col('appointments').where('petId', isEqualTo: petId).get();
+    return snap.docs.map((d) => Appointment.fromMap(d.data())).toList();
+  }
 
-    await _col('appointment').doc(appointment.appointmentid.toString()).set(
+  Future<void> updateAppointment(Appointment appointment) async {
+    if (appointment.appointmentId == null) {
+      throw ArgumentError('updateAppointment requires appointment.appointmentId');
+    }
+    await _col('appointments').doc(appointment.appointmentId).set(
           appointment.toMap(),
           SetOptions(merge: true),
         );
-    return appointment.appointmentid!;
   }
 
-  Future<int> deleteAppointment(int id) async {
-    await _col('appointment').doc(id.toString()).delete();
-    return id;
+  Future<void> deleteAppointment(String id) async {
+    await _col('appointments').doc(id).delete();
   }
 
   // --------------------
   // MedicalHistory
   // --------------------
-  Future<int> insertMedicalHistory(MedicalHistory history) async {
+  Future<String> insertMedicalHistory(MedicalHistory history) async {
     final data = history.toMap();
-    final int? id = history.historyid;
-
-    if (id != null) {
-      await _col('medical_history').doc(id.toString()).set(data);
-      return id;
+    if (history.historyId != null) {
+      await _col('medical_histories').doc(history.historyId).set(data);
+      return history.historyId!;
     }
-
-    final docRef = await _col('medical_history').add(data);
-    final parsed = int.tryParse(docRef.id);
-    if (parsed != null) return parsed;
-    return 0;
+    final docRef = await _col('medical_histories').add(data);
+    return docRef.id;
   }
 
   Future<List<MedicalHistory>> getMedicalHistories() async {
-    final snap = await _col('medical_history').get();
+    final snap = await _col('medical_histories').get();
     return snap.docs.map((d) => MedicalHistory.fromMap(d.data())).toList();
   }
 
-  Future<int> updateMedicalHistory(MedicalHistory medicalHistory) async {
-    if (medicalHistory.historyid == null) {
-      throw ArgumentError('updateMedicalHistory requires historyid');
-    }
-
-    await _col('medical_history')
-        .doc(medicalHistory.historyid.toString())
-        .set(medicalHistory.toMap(), SetOptions(merge: true));
-    return medicalHistory.historyid!;
+  Future<List<MedicalHistory>> getMedicalHistoriesByPet(String petId) async {
+    final snap =
+        await _col('medical_histories').where('petId', isEqualTo: petId).get();
+    return snap.docs.map((d) => MedicalHistory.fromMap(d.data())).toList();
   }
 
-  Future<int> deleteMedicalHistory(int id) async {
-    await _col('medical_history').doc(id.toString()).delete();
-    return id;
+  Future<void> updateMedicalHistory(MedicalHistory history) async {
+    if (history.historyId == null) {
+      throw ArgumentError('updateMedicalHistory requires history.historyId');
+    }
+    await _col('medical_histories').doc(history.historyId).set(
+          history.toMap(),
+          SetOptions(merge: true),
+        );
+  }
+
+  Future<void> deleteMedicalHistory(String id) async {
+    await _col('medical_histories').doc(id).delete();
   }
 
   // --------------------
   // Product
   // --------------------
-  Future<int> insertProduct(Product product) async {
+  Future<String> insertProduct(Product product) async {
     final data = product.toMap();
-    final int? id = product.productid;
-
-    if (id != null) {
-      await _col('product').doc(id.toString()).set(data);
-      return id;
+    if (product.productId != null) {
+      await _col('products').doc(product.productId).set(data);
+      return product.productId!;
     }
-
-    final docRef = await _col('product').add(data);
-    final parsed = int.tryParse(docRef.id);
-    if (parsed != null) return parsed;
-    return 0;
+    final docRef = await _col('products').add(data);
+    // Store the auto-generated ID in the document for later retrieval
+    await docRef.update({'productId': docRef.id});
+    return docRef.id;
   }
 
   Future<List<Product>> getProducts() async {
-    final snap = await _col('product').get();
+    final snap = await _col('products').get();
     return snap.docs.map((d) => Product.fromMap(d.data())).toList();
   }
 
-  Future<int> updateProduct(Product product) async {
-    if (product.productid == null) {
-      throw ArgumentError('updateProduct requires product.productid');
+  Future<void> updateProduct(Product product) async {
+    if (product.productId == null) {
+      throw ArgumentError('updateProduct requires product.productId');
     }
-
-    await _col('product').doc(product.productid.toString()).set(product.toMap(), SetOptions(merge: true));
-    return product.productid!;
+    await _col('products').doc(product.productId).set(
+          product.toMap(),
+          SetOptions(merge: true),
+        );
   }
 
-  Future<int> deleteProduct(int id) async {
-    await _col('product').doc(id.toString()).delete();
-    return id;
+  Future<void> deleteProduct(String id) async {
+    await _col('products').doc(id).delete();
   }
 
   // --------------------
   // Sales
   // --------------------
-  Future<int> insertSales(Sales sales) async {
+  Future<String> insertSales(Sales sales) async {
     final data = sales.toMap();
-    final int? id = sales.saleid;
-
-    if (id != null) {
-      await _col('sales').doc(id.toString()).set(data);
-      return id;
+    if (sales.saleId != null) {
+      await _col('sales').doc(sales.saleId).set(data);
+      return sales.saleId!;
     }
-
     final docRef = await _col('sales').add(data);
-    final parsed = int.tryParse(docRef.id);
-    if (parsed != null) return parsed;
-    return 0;
+    return docRef.id;
   }
 
   Future<List<Sales>> getSales() async {
@@ -258,97 +205,93 @@ class FirestoreDatabaseService {
     return snap.docs.map((d) => Sales.fromMap(d.data())).toList();
   }
 
-  Future<int> updateSales(Sales sales) async {
-    if (sales.saleid == null) {
-      throw ArgumentError('updateSales requires sales.saleid');
-    }
-
-    await _col('sales').doc(sales.saleid.toString()).set(sales.toMap(), SetOptions(merge: true));
-    return sales.saleid!;
+  Future<List<Sales>> getSalesByOwner(String ownerUid) async {
+    final snap = await _col('sales').where('ownerUid', isEqualTo: ownerUid).get();
+    return snap.docs.map((d) => Sales.fromMap(d.data())).toList();
   }
 
-  Future<int> deleteSales(int id) async {
-    await _col('sales').doc(id.toString()).delete();
-    return id;
+  Future<void> updateSales(Sales sales) async {
+    if (sales.saleId == null) {
+      throw ArgumentError('updateSales requires sales.saleId');
+    }
+    await _col('sales').doc(sales.saleId).set(sales.toMap(), SetOptions(merge: true));
+  }
+
+  Future<void> deleteSales(String id) async {
+    await _col('sales').doc(id).delete();
   }
 
   // --------------------
   // SaleItem
   // --------------------
-  Future<int> insertSaleItem(SaleItem saleItem) async {
-    final data = saleItem.toMap();
-    final int? id = saleItem.salesitemid;
-
-    if (id != null) {
-      await _col('sale_item').doc(id.toString()).set(data);
-      return id;
+  Future<String> insertSaleItem(SaleItem item) async {
+    final data = item.toMap();
+    if (item.salesItemId != null) {
+      await _col('sale_items').doc(item.salesItemId).set(data);
+      return item.salesItemId!;
     }
-
-    final docRef = await _col('sale_item').add(data);
-    final parsed = int.tryParse(docRef.id);
-    if (parsed != null) return parsed;
-    return 0;
+    final docRef = await _col('sale_items').add(data);
+    return docRef.id;
   }
 
   Future<List<SaleItem>> getSaleItems() async {
-    final snap = await _col('sale_item').get();
+    final snap = await _col('sale_items').get();
     return snap.docs.map((d) => SaleItem.fromMap(d.data())).toList();
   }
 
-  Future<int> updateSaleItem(SaleItem saleItem) async {
-    if (saleItem.salesitemid == null) {
-      throw ArgumentError('updateSaleItem requires saleItem.salesitemid');
-    }
-
-    await _col('sale_item')
-        .doc(saleItem.salesitemid.toString())
-        .set(saleItem.toMap(), SetOptions(merge: true));
-    return saleItem.salesitemid!;
+  Future<List<SaleItem>> getSaleItemsBySale(String saleId) async {
+    final snap = await _col('sale_items').where('saleId', isEqualTo: saleId).get();
+    return snap.docs.map((d) => SaleItem.fromMap(d.data())).toList();
   }
 
-  Future<int> deleteSaleItem(int id) async {
-    await _col('sale_item').doc(id.toString()).delete();
-    return id;
+  Future<void> updateSaleItem(SaleItem item) async {
+    if (item.salesItemId == null) {
+      throw ArgumentError('updateSaleItem requires item.salesItemId');
+    }
+    await _col('sale_items').doc(item.salesItemId).set(
+          item.toMap(),
+          SetOptions(merge: true),
+        );
+  }
+
+  Future<void> deleteSaleItem(String id) async {
+    await _col('sale_items').doc(id).delete();
   }
 
   // --------------------
   // InventoryLog
   // --------------------
-  Future<int> insertInventoryLog(InventoryLog inventoryLog) async {
-    final data = inventoryLog.toMap();
-    final int? id = inventoryLog.inventoryLogId;
-
-    if (id != null) {
-      await _col('inventory_log').doc(id.toString()).set(data);
-      return id;
+  Future<String> insertInventoryLog(InventoryLog log) async {
+    final data = log.toMap();
+    if (log.logId != null) {
+      await _col('inventory_logs').doc(log.logId).set(data);
+      return log.logId!;
     }
-
-    final docRef = await _col('inventory_log').add(data);
-    final parsed = int.tryParse(docRef.id);
-    if (parsed != null) return parsed;
-    return 0;
+    final docRef = await _col('inventory_logs').add(data);
+    return docRef.id;
   }
 
   Future<List<InventoryLog>> getInventoryLogs() async {
-    final snap = await _col('inventory_log').get();
+    final snap = await _col('inventory_logs').get();
     return snap.docs.map((d) => InventoryLog.fromMap(d.data())).toList();
   }
 
-  Future<int> updateInventoryLog(InventoryLog inventoryLog) async {
-    if (inventoryLog.inventoryLogId == null) {
-      throw ArgumentError('updateInventoryLog requires inventoryLogId');
-    }
-
-    await _col('inventory_log')
-        .doc(inventoryLog.inventoryLogId.toString())
-        .set(inventoryLog.toMap(), SetOptions(merge: true));
-    return inventoryLog.inventoryLogId!;
+  Future<List<InventoryLog>> getInventoryLogsByProduct(String productId) async {
+    final snap = await _col('inventory_logs').where('productId', isEqualTo: productId).get();
+    return snap.docs.map((d) => InventoryLog.fromMap(d.data())).toList();
   }
 
-  Future<int> deleteInventoryLog(int id) async {
-    await _col('inventory_log').doc(id.toString()).delete();
-    return id;
+  Future<void> updateInventoryLog(InventoryLog log) async {
+    if (log.logId == null) {
+      throw ArgumentError('updateInventoryLog requires log.logId');
+    }
+    await _col('inventory_logs').doc(log.logId).set(
+          log.toMap(),
+          SetOptions(merge: true),
+        );
+  }
+
+  Future<void> deleteInventoryLog(String id) async {
+    await _col('inventory_logs').doc(id).delete();
   }
 }
-
-

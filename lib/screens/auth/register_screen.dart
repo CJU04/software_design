@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:vetcare_connect/models/user_role.dart';
 import 'package:vetcare_connect/providers/auth_provider.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:vetcare_connect/config/admin_config.dart';
@@ -19,7 +18,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _contactNumberController = TextEditingController();
   final _emailController = TextEditingController();
   final _addressController = TextEditingController();
-  UserRole _selectedRole = UserRole.petOwner;
+  UserRole _selectedRole = UserRole.customer;
   bool _isPasswordVisible = false;
   final _adminCodeController = TextEditingController();
   bool _isLoading = false;
@@ -319,8 +318,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
 
         // When admin is requested, register the user with a safe default role
-        // (petOwner) and then call a callable function to request promotion.
-        final registerRole = _selectedRole == UserRole.admin ? UserRole.petOwner : _selectedRole;
+        // (customer) and then call a callable function to request promotion.
+        final registerRole = _selectedRole == UserRole.admin ? UserRole.customer : _selectedRole;
 
         await authProvider.registerWithEmailPassword(
           email: _emailController.text.trim(),

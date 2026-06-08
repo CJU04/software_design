@@ -4,11 +4,11 @@ import 'package:vetcare_connect/models/sale_item.dart';
 import 'package:vetcare_connect/models/sales.dart';
 import 'package:vetcare_connect/models/product.dart';
 import 'package:vetcare_connect/models/inventory_log.dart';
+import 'package:vetcare_connect/providers/auth_provider.dart';
 import 'package:vetcare_connect/providers/product_provider.dart';
 import 'package:vetcare_connect/providers/sales_provider.dart';
 import 'package:vetcare_connect/providers/sale_item_provider.dart';
 import 'package:vetcare_connect/providers/inventory_log_provider.dart';
-import 'package:vetcare_connect/providers/user_provider.dart';
 import 'package:vetcare_connect/services/database_service.dart';
 import 'package:vetcare_connect/views/widgets/drawer_widget.dart';
 import 'package:vetcare_connect/views/screens/access_denied_screen.dart';
@@ -32,9 +32,9 @@ class _SalesPosScreenState extends State<SalesPosScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = Provider.of<UserProvider>(context);
-    final currentUser = userProvider.currentUser;
-    final isCustomer = currentUser?.usertype == 'customer';
+    final authProvider = Provider.of<AuthProvider>(context);
+    final role = authProvider.role;
+    final isCustomer = role?.value == 'customer';
 
     if (isCustomer) {
       return const AccessDeniedScreen();
@@ -90,12 +90,12 @@ class _SalesPosScreenState extends State<SalesPosScreen> {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Text(
-                                      product.productname,
+                                      product.productName,
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(fontWeight: FontWeight.bold),
                                     ),
                                     Text('₱${product.price}'),
-                                    Text('Stock: ${product.stockquantity}'),
+                                    Text('Stock: ${product.stockQuantity}'),
                                   ],
                                 ),
                               ),
@@ -131,8 +131,16 @@ class _SalesPosScreenState extends State<SalesPosScreen> {
                                 borderRadius: BorderRadius.circular(8.0),
                               ),
                               child: ListTile(
-                                title: Text(_getProductName(item.productid)),
-                                subtitle: Text('Qty: ${item.quantity} x ₱${item.price.toStringAsFixed(2)} = ₱${(item.price * item.quantity).toStringAsFixed(2)}'),
+                                title: Text(
+                                  _getProductName(item.productId),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  'Qty: ${item.quantity} x ₱${item.price.toStringAsFixed(2)} = ₱${(item.price * item.quantity).toStringAsFixed(2)}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                                 trailing: IconButton(
                                   icon: const Icon(Icons.remove),
                                   onPressed: () => _removeFromCart(index),
@@ -201,12 +209,12 @@ class _SalesPosScreenState extends State<SalesPosScreen> {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Text(
-                                      product.productname,
+                                      product.productName,
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(fontWeight: FontWeight.bold),
                                     ),
                                     Text('₱${product.price}'),
-                                    Text('Stock: ${product.stockquantity}'),
+                                    Text('Stock: ${product.stockQuantity}'),
                                   ],
                                 ),
                               ),
@@ -242,8 +250,16 @@ class _SalesPosScreenState extends State<SalesPosScreen> {
                                 borderRadius: BorderRadius.circular(8.0),
                               ),
                               child: ListTile(
-                                title: Text(_getProductName(item.productid)),
-                                subtitle: Text('Qty: ${item.quantity} x ₱${item.price}'),
+                                title: Text(
+                                  _getProductName(item.productId),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  'Qty: ${item.quantity} x ₱${item.price.toStringAsFixed(2)}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                                 trailing: IconButton(
                                   icon: const Icon(Icons.remove),
                                   onPressed: () => _removeFromCart(index),
@@ -281,12 +297,12 @@ class _SalesPosScreenState extends State<SalesPosScreen> {
   }
 
   void _addToCart(Product product) {
-    final existingIndex = _cart.indexWhere((item) => item.productid == product.productid);
+    final existingIndex = _cart.indexWhere((item) => item.productId == product.productId);
     int currentQuantityInCart = existingIndex != -1 ? _cart[existingIndex].quantity : 0;
 
-    if (currentQuantityInCart + 1 > product.stockquantity) {
+    if (currentQuantityInCart + 1 > product.stockQuantity) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Insufficient stock for ${product.productname}')),
+        SnackBar(content: Text('Insufficient stock for ${product.productName}')),
       );
       return;
     }
@@ -297,9 +313,9 @@ class _SalesPosScreenState extends State<SalesPosScreen> {
         _cart[existingIndex].subtotal = _cart[existingIndex].price * _cart[existingIndex].quantity;
       } else {
         _cart.add(SaleItem(
-          salesitemid: null,
-          saleid: null,
-          productid: product.productid!,
+          salesItemId: null,
+          saleId: null,
+          productId: product.productId!,
           quantity: 1,
           price: product.price,
           subtotal: product.price,
@@ -320,20 +336,20 @@ class _SalesPosScreenState extends State<SalesPosScreen> {
     _total = _cart.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
   }
 
-  String _getProductName(int productId) {
+  String _getProductName(String productId) {
     final productProvider = Provider.of<ProductProvider>(context, listen: false);
     final product = productProvider.products.firstWhere(
-      (p) => p.productid == productId,
-      orElse: () => Product(productid: null, productname: 'Unknown Product', description: '', price: 0.0, stockquantity: 0, category: ''),
+      (p) => p.productId == productId,
+      orElse: () => Product(productId: null, productName: 'Unknown Product', description: '', price: 0.0, stockQuantity: 0, category: ''),
     );
-    return product.productname;
+    return product.productName;
   }
 
   void _checkout() async {
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final currentUser = userProvider.currentUser;
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final uid = authProvider.firebaseUser?.uid;
 
-    if (currentUser == null) {
+    if (uid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('User not logged in')),
       );
@@ -347,10 +363,10 @@ class _SalesPosScreenState extends State<SalesPosScreen> {
     final inventoryLogProvider = Provider.of<InventoryLogProvider>(context, listen: false);
 
     final sale = Sales(
-      saleid: null,
-      userid: currentUser.userid!,
+      saleId: null,
+      ownerUid: uid,
       date: DateTime.now().toIso8601String().split('T')[0],
-      totalamount: _total,
+      totalAmount: _total,
       paymentStatus: 'paid',
       paymentMethod: 'cash', // You can add a dialog to choose payment method
       paymentDate: DateTime.now().toIso8601String(),
@@ -361,9 +377,9 @@ class _SalesPosScreenState extends State<SalesPosScreen> {
     // Create sale items and update stock
     for (final item in _cart) {
       final saleItem = SaleItem(
-        salesitemid: null,
-        saleid: saleId,
-        productid: item.productid,
+        salesItemId: null,
+        saleId: saleId,
+        productId: item.productId,
         quantity: item.quantity,
         price: item.price,
         subtotal: item.subtotal,
@@ -371,21 +387,21 @@ class _SalesPosScreenState extends State<SalesPosScreen> {
       await DatabaseService().insertSaleItem(saleItem);
 
       // Update product stock
-      final product = productProvider.products.firstWhere((p) => p.productid == item.productid);
+      final product = productProvider.products.firstWhere((p) => p.productId == item.productId);
       final updatedProduct = Product(
-        productid: product.productid,
-        productname: product.productname,
+        productId: product.productId,
+        productName: product.productName,
         description: product.description,
         price: product.price,
-        stockquantity: product.stockquantity - item.quantity,
+        stockQuantity: product.stockQuantity - item.quantity,
         category: product.category,
       );
       await DatabaseService().updateProduct(updatedProduct);
 
       // Add inventory log
       final log = InventoryLog(
-        inventoryLogId: null,
-        productId: item.productid,
+        logId: null,
+        productId: item.productId,
         quantityChange: -item.quantity,
         date: DateTime.now().toIso8601String().split('T')[0],
         reason: 'Sale',

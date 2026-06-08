@@ -8,10 +8,16 @@ import 'config/theme/app_theme.dart';
 import 'firebase_options.dart';
 import 'providers/app_init_provider.dart';
 import 'providers/auth_provider.dart';
-import 'providers/user_provider.dart';
+import 'providers/firebase_user_provider.dart';
 import 'providers/pet_provider.dart';
 import 'providers/appointment_provider.dart';
 import 'providers/medical_history_provider.dart';
+import 'providers/product_provider.dart';
+import 'providers/sales_provider.dart';
+import 'providers/sale_item_provider.dart';
+import 'providers/inventory_log_provider.dart';
+import 'providers/theme_provider.dart';
+import 'providers/notification_provider.dart';
 import 'routes/app_router.dart';
 
 Future<void> main() async {
@@ -25,15 +31,13 @@ Future<void> main() async {
   // This prevents "No AppCheckProvider installed" warnings.
   try {
     if (kIsWeb) {
-      // Note: In this project’s firebase_app_check version, passing a WebProvider to
-      // `activate()` isn’t supported (webProvider is required, but WebProvider isn’t exposed).
+      // Note: In this project's firebase_app_check version, passing a WebProvider to
+      // `activate()` isn't supported (webProvider is required, but WebProvider isn't exposed).
       // To avoid runtime crashes on web, we attempt activation and ignore failures.
       await FirebaseAppCheck.instance.activate();
     } else {
-      // Android: Play Integrity.
-      await FirebaseAppCheck.instance.activate(
-        androidProvider: AndroidProvider.playIntegrity,
-      );
+      // Android: App Check with Play Integrity (default).
+      await FirebaseAppCheck.instance.activate();
     }
   } catch (e) {
     debugPrint('App Check activation failed: $e');
@@ -49,10 +53,16 @@ Future<void> main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => AppInitProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => FirebaseUserProvider()),
         ChangeNotifierProvider(create: (_) => PetProvider()),
         ChangeNotifierProvider(create: (_) => AppointmentProvider()),
         ChangeNotifierProvider(create: (_) => MedicalHistoryProvider()),
+        ChangeNotifierProvider(create: (_) => ProductProvider()),
+        ChangeNotifierProvider(create: (_) => SalesProvider()),
+        ChangeNotifierProvider(create: (_) => SaleItemProvider()),
+        ChangeNotifierProvider(create: (_) => InventoryLogProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
       child: const VetCareConnectApp(),
     ),
@@ -64,18 +74,18 @@ class VetCareConnectApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = MediaQuery.platformBrightnessOf(context);
-
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'VetCare Connect',
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: brightness == Brightness.dark ? ThemeMode.dark : ThemeMode.light,
-      initialRoute: AppRouter.splashRoute,
-      onGenerateRoute: AppRouter.generateRoute,
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'VetCare Connect',
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          themeMode: themeProvider.themeMode,
+          initialRoute: AppRouter.splashRoute,
+          onGenerateRoute: AppRouter.generateRoute,
+        );
+      },
     );
   }
 }
-
-

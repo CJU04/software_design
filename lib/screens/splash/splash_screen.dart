@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/app_init_provider.dart';
-import '../../models/user_role.dart';
 import '../../providers/auth_provider.dart';
 import '../../routes/app_router.dart';
-import '../../widgets/app_loading_indicator.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -43,6 +41,14 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     );
 
     _animationController.forward();
+    // Delay navigation to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) => _delayedNavigate());
+  }
+
+  Future<void> _delayedNavigate() async {
+    // Wait for the widget to fully build before navigating
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (!mounted) return;
     _tryNavigate();
   }
 
@@ -61,23 +67,12 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   Widget build(BuildContext context) {
     final init = context.watch<AppInitProvider>();
 
-    if (!init.isLoading && !_hasNavigated) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _tryNavigate());
-    }
-
     return Scaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Theme.of(context).colorScheme.primary,
-              Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
-            ],
-          ),
+          color: Theme.of(context).colorScheme.primary,
         ),
         child: SafeArea(
           child: Column(
@@ -97,7 +92,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 },
                 child: Column(
                   children: [
-                    // App Logo
+                    // App Logo using the logo image from assets
                     Container(
                       width: 120,
                       height: 120,
@@ -112,11 +107,20 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                           ),
                         ],
                       ),
-                      child: Center(
-                        child: Icon(
-                          Icons.pets,
-                          size: 60,
-                          color: Theme.of(context).colorScheme.primary,
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/logo.png',
+                          width: 120,
+                          height: 120,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            // Fallback to icon if image fails
+                            return Icon(
+                              Icons.pets,
+                              size: 60,
+                              color: Theme.of(context).colorScheme.primary,
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -246,8 +250,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     switch (role) {
       case UserRole.admin:
         return AppRouter.adminDashboardRoute;
-      case UserRole.petOwner:
-        return AppRouter.petOwnerDashboardRoute;
+      case UserRole.customer:
+        return AppRouter.customerDashboardRoute;
       case UserRole.staff:
         return AppRouter.staffDashboardRoute;
       case UserRole.veterinarian:

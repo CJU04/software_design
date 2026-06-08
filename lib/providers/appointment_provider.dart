@@ -12,8 +12,8 @@ class AppointmentProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<int> addAppointment(Appointment appointment) async {
-    int id = await DatabaseService().insertAppointment(appointment);
+  Future<String> addAppointment(Appointment appointment) async {
+    final id = await DatabaseService().insertAppointment(appointment);
     await loadAppointments();
     return id;
   }
@@ -23,22 +23,21 @@ class AppointmentProvider with ChangeNotifier {
     await loadAppointments();
   }
 
-  Future<void> deleteAppointment(int id) async {
+  Future<void> deleteAppointment(String id) async {
     await DatabaseService().deleteAppointment(id);
     await loadAppointments();
   }
 
-  Future<void> loadAppointmentsForUser(int userid) async {
-    _appointments = await DatabaseService().getAppointmentsByUser(userid);
+  Future<void> loadAppointmentsForOwner(String ownerUid) async {
+    _appointments = await DatabaseService().getAppointmentsByOwner(ownerUid);
     notifyListeners();
   }
 
-  List<Appointment> getAppointmentsByUser(int userid) {
-    return _appointments.where((appointment) => appointment.userid == userid).toList();
+  List<Appointment> getAppointmentsByOwner(String ownerUid) {
+    return _appointments.where((a) => a.ownerUid == ownerUid).toList();
   }
 
-  List<Appointment> getAppointmentsByPet(int petid) {
-    return _appointments.where((appointment) => appointment.petid == petid).toList();
+  List<Appointment> getAppointmentsByPet(String petId) {
+    return _appointments.where((a) => a.petId == petId).toList();
   }
 }
-

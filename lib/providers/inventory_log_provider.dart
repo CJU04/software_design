@@ -12,9 +12,10 @@ class InventoryLogProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addInventoryLog(InventoryLog log) async {
-    await DatabaseService().insertInventoryLog(log);
+  Future<String> addInventoryLog(InventoryLog log) async {
+    final id = await DatabaseService().insertInventoryLog(log);
     await loadInventoryLogs();
+    return id;
   }
 
   Future<void> updateInventoryLog(InventoryLog log) async {
@@ -22,9 +23,12 @@ class InventoryLogProvider with ChangeNotifier {
     await loadInventoryLogs();
   }
 
-  Future<void> deleteInventoryLog(int id) async {
+  Future<void> deleteInventoryLog(String id) async {
     await DatabaseService().deleteInventoryLog(id);
     await loadInventoryLogs();
   }
-}
 
+  List<InventoryLog> getInventoryLogsByProduct(String productId) {
+    return _inventoryLogs.where((l) => l.productId == productId).toList();
+  }
+}

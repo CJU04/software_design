@@ -1,6 +1,6 @@
 enum UserRole {
   admin,
-  petOwner,
+  customer,
   staff,
   veterinarian,
 }
@@ -10,8 +10,8 @@ extension UserRoleX on UserRole {
     switch (this) {
       case UserRole.admin:
         return 'admin';
-      case UserRole.petOwner:
-        return 'petOwner';
+      case UserRole.customer:
+        return 'customer';
       case UserRole.staff:
         return 'staff';
       case UserRole.veterinarian:
@@ -26,14 +26,15 @@ extension UserRoleX on UserRole {
 
     switch (normalized) {
       case 'admin':
+      case 'administrator':
         return UserRole.admin;
 
       // Support both spec format and common variants.
+      case 'customer':
       case 'pet_owner':
       case 'petowner':
       case 'pet-owner':
-      case 'petowner':
-        return UserRole.petOwner;
+        return UserRole.customer;
 
       case 'staff':
         return UserRole.staff;
